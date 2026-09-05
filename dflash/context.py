@@ -78,17 +78,12 @@ TASKS = {
     },
 }
 
-# Summarization, long-form QA and code completion. The remaining LongBench
-# tasks answer in a handful of tokens, which leaves too few decode steps for
-# per-token latency and acceptance to mean anything.
-DEFAULT_TASKS = (
-    "gov_report",
-    "multi_news",
-    "qasper",
-    "multifieldqa_en",
-    "lcc",
-    "repobench-p",
-)
+# The three tasks the DFlash paper reports long-context acceptance length on
+# (Table 4). Selecting one of these reproduces a single column of that table.
+PAPER_TASKS = ("hotpotqa", "qasper", "gov_report")
+
+# With no --context-task the whole English LongBench-E suite is used.
+DEFAULT_TASKS = tuple(TASKS)
 
 # The fit loop below is iterative because decoding a token slice and re-encoding
 # it is not token-identical at the boundary. Six rounds is far more than the two
@@ -98,10 +93,14 @@ _LENGTH_TOLERANCE = 16
 
 
 def resolve_tasks(spec: str | None) -> list[str]:
-    """Turn a comma-separated --context-task value into a task list."""
-    if spec is None:
-        return list(DEFAULT_TASKS)
-    if spec == "all":
+    """Turn a --context-task value into a task list.
+
+    ``None`` (the default) means every English LongBench-E task; ``all`` is an
+    explicit spelling of the same thing. Otherwise the value is one task name,
+    or a comma-separated list of them — pass one of ``PAPER_TASKS`` to line up
+    with a column of the paper's long-context table.
+    """
+    if spec is None or spec == "all":
         return list(TASKS)
     tasks = [name.strip() for name in spec.split(",") if name.strip()]
     unknown = [name for name in tasks if name not in TASKS]

@@ -145,8 +145,9 @@ per-decode-token latency, throughput, token counts, and memory. The baseline is
 profiled into the same file under its own key, carrying only the metrics that
 apply to it — latency, tokens and memory, but nothing drafter-specific. Add
 `--no-baseline` to skip that run, which halves the runtime but drops the
-speedup number. `--context-task` selects LongBench-E tasks (default:
-summarization, long-form QA and code completion; `all` for every English task).
+speedup number. `--context-task` selects a LongBench-E task (default: every
+English task); the paper's long-context tasks are `hotpotqa`, `qasper` and
+`gov_report`.
 
 See [PROFILING.md](PROFILING.md) for the file-by-file layout, the record
 schema, and per-model run recipes.

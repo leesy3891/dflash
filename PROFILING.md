@@ -27,7 +27,7 @@ dflash benchmark transformers --model-preset <name> --context-length <N> [option
 | `--max-samples` | Prompts to run (default 32). |
 | `--max-new-tokens` | Decode cap per prompt. Keep it at 256+ so per-token latency is not dominated by prefill. |
 | `--reasoning` | `off`/`on`, or a model-specific level. **Set this deliberately** — see Caveats. |
-| `--context-task` | Comma-separated LongBench-E tasks, or `all`. Default: `gov_report,multi_news,qasper,multifieldqa_en,lcc,repobench-p`. |
+| `--context-task` | LongBench-E task to run. Default (and `all`): every English task. The paper's long-context tasks are `hotpotqa`, `qasper`, `gov_report`; a comma-separated list also works. |
 | `--no-baseline` | Skip the `block_size=1` run. Halves runtime, drops the speedup number. |
 | `--profile-draft-memory` | Also measure the drafter's activation peak. Perturbs latency slightly; leave off when timing is the point. |
 | `--record-dir` | Output directory (default `record`). |
@@ -78,7 +78,8 @@ One JSON file per run at `record/<model>_<context-length>_<date>.json`, e.g.
 | `aggregate_time_per_output_token_s` | Decode time over decode tokens, pooled across samples. The headline per-token latency. |
 | `mean_time_per_output_token_s` | Same quantity averaged per sample rather than pooled. |
 | `decode_throughput_tok_s` | Reciprocal of the aggregate figure. |
-| `peak_memory_gb` | `torch.cuda.max_memory_allocated`, reset before each sample. |
+| `peak_memory_gb` | `torch.cuda.max_memory_allocated`, reset before each sample — what live tensors occupy. |
+| `peak_memory_reserved_gb` | `torch.cuda.max_memory_reserved` — what the caching allocator holds. This is the number to compare against `nvidia-smi`, which additionally includes the CUDA context (a few hundred MB). |
 | `max_target_cache_gb` | Largest target KV cache observed. |
 
 `summary.dflash` adds the drafter-only metrics. The baseline never calls the
@@ -96,6 +97,12 @@ rather than reporting zeros:
 | `draft_weight_gb` | Draft parameters and buffers. |
 | `max_draft_cache_gb` | Largest draft KV cache observed — this is what grows with context. |
 | `max_draft_activation_gb` | Draft activation peak, only under `--profile-draft-memory`; otherwise `null`. |
+| `max_target_hidden_states_gb` | Target hidden states DFlash forces the target to emit (`output_hidden_states`) so its context feature can be injected into every draft layer. Usually the **largest** overhead term. |
+| `max_context_feature_gb` | The concatenated per-layer target feature actually injected into the drafter. |
+| `draft_overhead_gb` | Sum of the five terms above — the real memory cost of running the drafter. |
+| `draft_forward_s`, `context_feature_s` | GPU time in the draft forward, and in building the injected context feature. Measured with CUDA events, so async work is attributed correctly. |
+| `drafter_latency_s`, `drafter_share_of_decode` | The two above combined, absolute and as a fraction of decode time. |
+| `target_forward_s`, `target_share_of_decode` | Same for the target's verify forwards. |
 
 Per-sample entries under `samples` carry the same fields for one prompt, plus
 `task` and the per-step `accepted_lengths` / `acceptance_lengths` arrays, so
@@ -185,13 +192,37 @@ relative comparisons.
 **Drafter memory is reported in parts, not as one number.** The CUDA allocator
 cannot attribute a peak to one of two models sharing a device, and the draft
 weights stay resident during the baseline run as well — so the DFlash-minus-
-baseline peak delta covers cache and activations only, not weights. Read
-`draft_weight_gb`, `max_draft_cache_gb` and `max_draft_activation_gb` together.
+baseline peak delta understates the cost. Use `draft_overhead_gb`, which adds up
+weights, KV cache, activations, and the two target-KV-injection terms.
 
-**The two presets behave very differently, and that is real.** On identical
-LongBench prompts at 4k, Qwen3.5-9B reaches ~9.2 mean acceptance length and
-~2.4x decoding speedup, while Qwen3-8B reaches ~2.5 and ~1.4x. The Qwen3-8B
-draft also degrades with context (2.87 → 2.46 → 2.13 mean acceptance length at
-1k → 4k → 8k on `gov_report`) and turns into a slowdown at 16k, because all five
-of its draft layers are full-attention; the Qwen3.5-9B draft keeps five of six
-layers on a 4096 sliding window, so its draft cost stays flat as context grows.
+**The injection terms dominate, and they are why the process is bigger than
+weights + KV + activations.** To inject the target's context into each draft
+layer, DFlash runs the target with `output_hidden_states=True` and concatenates
+the selected layers. At 8k on Qwen3-8B that is 2.31 GB of hidden states plus
+0.31 GB of context feature — more than the 1.95 GB of draft weights. The
+baseline pays neither, which is why its allocated peak is ~2 GB lower.
+
+**`nvidia-smi` will always read higher than `peak_memory_gb`.** Allocated counts
+live tensors only. Compare against `peak_memory_reserved_gb` instead, and expect
+`nvidia-smi` to sit a few hundred MB above even that for the CUDA context. At 8k
+on Qwen3-8B: 21.29 GB allocated, 22.01 GB reserved, ~22.3 GiB in `nvidia-smi`.
+
+**The two presets behave very differently, and that is real.** Measured on
+`gov_report`, mean acceptance length against the paper's Table 4 Base column
+(which is for a Qwen3.5-27B drafter, not either preset here):
+
+| Context | Qwen3-8B | Qwen3.5-9B | Paper (27B, Base) | Paper (27B, Long) |
+| --- | --- | --- | --- | --- |
+| 1K | 2.87 | 7.39 | 4.53 | 4.53 |
+| 4K | 2.46 | 8.46 | 3.93 | 4.25 |
+| 8K | 2.13 | 8.43 | 3.32 | 4.04 |
+| 16K | — | 5.86 | 2.67 | 3.81 |
+
+Qwen3.5-9B lands *above* the paper's base drafter and holds flat through 8k;
+Qwen3-8B lands well below it. So a low number from `qwen3-8b` is a property of
+the `Qwen3-8B-DFlash-b16` checkpoint, not of this harness. Two things were ruled
+out directly: switching the source dataset changed nothing, and head-only versus
+middle truncation changed nothing (2.11 vs 2.13 at 8k). The likely mechanism is
+attention shape — all five Qwen3-8B draft layers are full-attention, so draft
+cost and drift both grow with context, while the Qwen3.5-9B draft keeps five of
+six layers on a 4096 sliding window.

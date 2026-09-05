@@ -27,7 +27,9 @@ def sample_metrics(stats, *, drafter: bool = True) -> dict:
         "time_per_output_token_s": stats.time_per_output_token,
         "num_decode_steps": stats.num_verify_steps,
         "peak_memory_bytes": stats.peak_memory_bytes,
+        "peak_memory_reserved_bytes": stats.peak_memory_reserved_bytes,
         "target_cache_bytes": stats.target_cache_bytes,
+        "target_forward_s": stats.target_forward_s,
     }
     if not drafter:
         return metrics
@@ -41,6 +43,10 @@ def sample_metrics(stats, *, drafter: bool = True) -> dict:
         "gamma": stats.gamma,
         "draft_cache_bytes": stats.draft_cache_bytes,
         "draft_activation_bytes": stats.draft_activation_bytes,
+        "target_hidden_states_bytes": stats.target_hidden_states_bytes,
+        "context_feature_bytes": stats.context_feature_bytes,
+        "draft_forward_s": stats.draft_forward_s,
+        "context_feature_s": stats.context_feature_s,
         "accepted_lengths": stats.accepted_lengths,
         "acceptance_lengths": stats.acceptance_lengths,
     }
@@ -55,6 +61,12 @@ def _percentile(values: list[float], fraction: float) -> float:
 def _maximum(values: list, default=0):
     present = [v for v in values if v is not None]
     return max(present) if present else default
+
+
+def _total_or_none(runs: list[dict], key: str):
+    """Sum a per-sample timing, or None when the timing was not collected."""
+    values = [r.get(key) for r in runs]
+    return sum(values) if all(v is not None for v in values) else None
 
 
 def summarize(
@@ -91,6 +103,13 @@ def summarize(
         "decode_throughput_tok_s": total_output / total_decode,
         # Memory
         "peak_memory_gb": _maximum([r["peak_memory_bytes"] for r in runs]) / _GB,
+        # Allocated is what the tensors occupy; reserved is what the caching
+        # allocator holds. nvidia-smi shows reserved plus the CUDA context, so
+        # reserved is the figure to reconcile against it.
+        "peak_memory_reserved_gb": _maximum(
+            [r["peak_memory_reserved_bytes"] for r in runs]
+        )
+        / _GB,
         "max_target_cache_gb": _maximum([r["target_cache_bytes"] for r in runs]) / _GB,
     }
     if not drafter:
@@ -103,6 +122,17 @@ def summarize(
     total_accepted = sum(r["num_accepted_tokens"] for r in runs)
     total_steps = sum(r["num_verify_steps"] for r in runs)
     produced = [n for r in runs for n in r["acceptance_lengths"]]
+    max_draft_cache = _maximum([r["draft_cache_bytes"] for r in runs])
+    max_hidden_states = _maximum([r["target_hidden_states_bytes"] for r in runs])
+    max_context_feature = _maximum([r["context_feature_bytes"] for r in runs])
+    max_draft_activation = (
+        _maximum([r["draft_activation_bytes"] for r in runs])
+        if any(r["draft_activation_bytes"] is not None for r in runs)
+        else None
+    )
+    draft_forward_s = _total_or_none(runs, "draft_forward_s")
+    context_feature_s = _total_or_none(runs, "context_feature_s") or 0.0
+    target_forward_s = _total_or_none(runs, "target_forward_s")
     summary.update(
         {
             # Acceptance
@@ -127,11 +157,40 @@ def summarize(
             ),
             # Drafter memory
             "draft_weight_gb": draft_weight_bytes / _GB,
-            "max_draft_cache_gb": _maximum([r["draft_cache_bytes"] for r in runs]) / _GB,
+            "max_draft_cache_gb": max_draft_cache / _GB,
             "max_draft_activation_gb": (
-                _maximum([r["draft_activation_bytes"] for r in runs]) / _GB
-                if any(r["draft_activation_bytes"] is not None for r in runs)
-                else None
+                max_draft_activation / _GB if max_draft_activation is not None else None
+            ),
+            # Target-KV injection: DFlash feeds the target's per-layer context
+            # feature into every draft layer, which both forces the target to
+            # emit all hidden states and materialises the concatenated feature.
+            # The baseline pays neither, so both are drafter overhead.
+            "max_target_hidden_states_gb": max_hidden_states / _GB,
+            "max_context_feature_gb": max_context_feature / _GB,
+            "draft_overhead_gb": (
+                draft_weight_bytes
+                + max_draft_cache
+                + max_hidden_states
+                + max_context_feature
+                + (max_draft_activation or 0)
+            )
+            / _GB,
+            # Drafter latency
+            "draft_forward_s": draft_forward_s,
+            "context_feature_s": context_feature_s,
+            "drafter_latency_s": (
+                None
+                if draft_forward_s is None
+                else draft_forward_s + context_feature_s
+            ),
+            "target_forward_s": target_forward_s,
+            "drafter_share_of_decode": (
+                None
+                if draft_forward_s is None
+                else (draft_forward_s + context_feature_s) / total_decode
+            ),
+            "target_share_of_decode": (
+                None if target_forward_s is None else target_forward_s / total_decode
             ),
         }
     )
@@ -175,7 +234,10 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
         row("TTFT mean / p50 / p95", f"{summary['mean_ttft_s']:.3f}s / {summary['p50_ttft_s']:.3f}s / {summary['p95_ttft_s']:.3f}s")
         row("Per-decode-token latency", f"{summary['aggregate_time_per_output_token_s'] * 1000:.2f}ms")
         row("Decode throughput", f"{summary['decode_throughput_tok_s']:.2f} tok/s")
-        row("Peak memory", f"{summary['peak_memory_gb']:.2f} GB")
+        row(
+            "Peak memory (allocated / reserved)",
+            f"{summary['peak_memory_gb']:.2f} / {summary['peak_memory_reserved_gb']:.2f} GB",
+        )
         row("Target KV cache (max)", f"{summary['max_target_cache_gb']:.2f} GB")
 
     print(f"\n{'=' * 64}")
@@ -188,14 +250,30 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
         "Acceptance histogram",
         str([f"{x * 100:.1f}%" for x in dflash["acceptance_length_histogram"]]),
     )
-    print("  -- drafter")
+    print("  -- drafter activity")
     row("Gamma (tokens per proposal)", str(dflash["gamma"]))
     row("Full-gamma proposals", str(dflash["total_full_gamma_proposals"]))
     row("Draft calls / verify steps", f"{dflash['total_draft_calls']} / {dflash['total_verify_steps']}")
+    print("  -- drafter memory overhead")
     row("Draft weights", f"{dflash['draft_weight_gb']:.2f} GB")
     row("Draft KV cache (max)", f"{dflash['max_draft_cache_gb']:.2f} GB")
+    row("Target hidden states (max)", f"{dflash['max_target_hidden_states_gb']:.2f} GB")
+    row("Injected context feature (max)", f"{dflash['max_context_feature_gb']:.2f} GB")
     if dflash["max_draft_activation_gb"] is not None:
         row("Draft activation peak (max)", f"{dflash['max_draft_activation_gb']:.2f} GB")
+    row("Total drafter overhead", f"{dflash['draft_overhead_gb']:.2f} GB")
+    if dflash["drafter_latency_s"] is not None:
+        print("  -- drafter latency")
+        row("Draft forward", f"{dflash['draft_forward_s']:.1f}s")
+        row("Context-feature build", f"{dflash['context_feature_s']:.1f}s")
+        row(
+            "Drafter total (share of decode)",
+            f"{dflash['drafter_latency_s']:.1f}s ({dflash['drafter_share_of_decode'] * 100:.1f}%)",
+        )
+        row(
+            "Target verify (share of decode)",
+            f"{dflash['target_forward_s']:.1f}s ({dflash['target_share_of_decode'] * 100:.1f}%)",
+        )
 
     if baseline is None:
         print(f"{'=' * 64}")
@@ -211,7 +289,8 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
         f"{baseline['aggregate_time_per_output_token_s'] / dflash['aggregate_time_per_output_token_s']:.2f}x",
     )
     row(
-        "Peak delta (draft cache + activations)",
+        "Peak allocated delta",
         f"{dflash['peak_memory_gb'] - baseline['peak_memory_gb']:.2f} GB",
     )
+    row("Drafter memory overhead", f"{dflash['draft_overhead_gb']:.2f} GB")
     print(f"{'=' * 64}")

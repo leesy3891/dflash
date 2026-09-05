@@ -61,7 +61,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     benchmark.add_argument(
         "--context-task",
-        help="Comma-separated LongBench-E tasks, or 'all' (default: summarization, long-form QA and code)",
+        help="LongBench-E task to run (default: all). The paper's long-context "
+        "tasks are hotpotqa, qasper and gov_report; a comma-separated list also works",
     )
     benchmark.add_argument(
         "--record-dir",

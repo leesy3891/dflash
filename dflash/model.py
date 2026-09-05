@@ -181,6 +181,69 @@ def _cache_bytes(cache) -> int:
     return total
 
 
+def _tensor_bytes(tensors) -> int:
+    """CUDA bytes held by an iterable of tensors, counting each storage once."""
+    seen: set[tuple] = set()
+    total = 0
+    for tensor in tensors:
+        if tensor is None or not tensor.is_cuda:
+            continue
+        storage = tensor.untyped_storage()
+        key = (tensor.device, storage.data_ptr())
+        if key not in seen:
+            seen.add(key)
+            total += storage.nbytes()
+    return total
+
+
+class _GpuTimer:
+    """Accumulates GPU time for a region using CUDA events.
+
+    The draft/verify loop already synchronises once per step (the acceptance
+    count is read back with ``.item()``), but work *within* a step is still
+    queued asynchronously, so wall-clock timers cannot separate the drafter
+    from the target. CUDA events can, without adding a sync per region; pending
+    pairs are drained periodically so the event list stays bounded.
+    """
+
+    _DRAIN_EVERY = 512
+
+    def __init__(self, enabled: bool) -> None:
+        self.enabled = enabled
+        self.elapsed_ms = 0.0
+        self._pending: list[tuple] = []
+        self._start = None
+
+    def __enter__(self):
+        if self.enabled:
+            self._start = torch.cuda.Event(enable_timing=True)
+            self._start.record()
+        return self
+
+    def __exit__(self, *exc_info) -> bool:
+        if self.enabled:
+            end = torch.cuda.Event(enable_timing=True)
+            end.record()
+            self._pending.append((self._start, end))
+            if len(self._pending) >= self._DRAIN_EVERY:
+                self._drain()
+        return False
+
+    def _drain(self) -> None:
+        if not self._pending:
+            return
+        self._pending[-1][1].synchronize()
+        self.elapsed_ms += sum(start.elapsed_time(end) for start, end in self._pending)
+        self._pending.clear()
+
+    @property
+    def seconds(self) -> float | None:
+        if not self.enabled:
+            return None
+        self._drain()
+        return self.elapsed_ms / 1000.0
+
+
 def module_bytes(module: nn.Module) -> int:
     """CUDA bytes held by a module's parameters and buffers."""
     seen: set[tuple] = set()
@@ -231,6 +294,7 @@ def dflash_generate(
     block_size: int | None = None,
     return_stats: bool = False,
     profile_draft_memory: bool = False,
+    profile_draft_latency: bool = True,
 ):
     _validate_sampling(temperature, top_p, top_k)
     num_input_tokens = input_ids.shape[1]
@@ -243,6 +307,16 @@ def dflash_generate(
     position_ids = torch.arange(output_ids.shape[1], device=target.device).unsqueeze(0)
     past_key_values_target = _make_cache(target.config)
     past_key_values_draft = _make_cache(model.config)
+
+    timing = return_stats and profile_draft_latency
+    draft_forward_timer = _GpuTimer(timing)
+    context_feature_timer = _GpuTimer(timing)
+    target_forward_timer = _GpuTimer(timing)
+    # The target's context feature is what DFlash injects into every draft
+    # layer, and materialising it forces output_hidden_states on the target.
+    # Both are drafter overhead and neither is charged to the baseline.
+    hidden_states_bytes = 0
+    context_feature_bytes = 0
 
     prefill_start = _cuda_time() if return_stats else None
     output = target(
@@ -259,7 +333,16 @@ def dflash_generate(
         output.logits, temperature, top_p, top_k
     )
     if block_size > 1:
-        target_hidden = extract_context_feature(output.hidden_states, model.target_layer_ids)
+        hidden_states_bytes = max(
+            hidden_states_bytes, _tensor_bytes(output.hidden_states)
+        )
+        with context_feature_timer:
+            target_hidden = extract_context_feature(
+                output.hidden_states, model.target_layer_ids
+            )
+        context_feature_bytes = max(
+            context_feature_bytes, _tensor_bytes([target_hidden])
+        )
     _crop_to(past_key_values_target, num_input_tokens)
     time_to_first_token = _cuda_time() - prefill_start if return_stats else None
 
@@ -295,13 +378,14 @@ def dflash_generate(
                 block_output_ids,
                 float(_draft_value(model.config, "input_embedding_scale", 1.0)),
             )
-            draft_hidden = model(
-                target_hidden=target_hidden,
-                noise_embedding=noise_embedding,
-                position_ids=position_ids[:, start - target_hidden.shape[1] : start + verify_size],
-                past_key_values=past_key_values_draft,
-                use_cache=True,
-            )[:, 1 - verify_size :, :]
+            with draft_forward_timer:
+                draft_hidden = model(
+                    target_hidden=target_hidden,
+                    noise_embedding=noise_embedding,
+                    position_ids=position_ids[:, start - target_hidden.shape[1] : start + verify_size],
+                    past_key_values=past_key_values_draft,
+                    use_cache=True,
+                )[:, 1 - verify_size :, :]
             _crop_to(past_key_values_draft, start)
             if profile_draft_memory:
                 draft_peak_bytes = torch.cuda.max_memory_allocated()
@@ -327,13 +411,14 @@ def dflash_generate(
                     draft_indices = None
                 else:
                     block_output_ids[:, 1:] = torch.argmax(draft_logits, dim=-1)
-        output = target(
-            block_output_ids,
-            position_ids=block_position_ids,
-            past_key_values=past_key_values_target,
-            use_cache=True,
-            output_hidden_states=verify_size > 1,
-        )
+        with target_forward_timer:
+            output = target(
+                block_output_ids,
+                position_ids=block_position_ids,
+                past_key_values=past_key_values_target,
+                use_cache=True,
+                output_hidden_states=verify_size > 1,
+            )
 
         if temperature > 0:
             target_probs = _sampling_probs(output.logits, temperature, top_p, top_k)
@@ -368,7 +453,16 @@ def dflash_generate(
         proposed_lengths.append(verify_size - 1)
 
         if verify_size > 1:
-            target_hidden = extract_context_feature(output.hidden_states, model.target_layer_ids)[:, :produced, :]
+            hidden_states_bytes = max(
+                hidden_states_bytes, _tensor_bytes(output.hidden_states)
+            )
+            with context_feature_timer:
+                target_hidden = extract_context_feature(
+                    output.hidden_states, model.target_layer_ids
+                )[:, :produced, :]
+            context_feature_bytes = max(
+                context_feature_bytes, _tensor_bytes([target_hidden])
+            )
 
     output_ids = output_ids[:, :min(start + 1, max_length)]
 
@@ -399,9 +493,15 @@ def dflash_generate(
         ),
         gamma=block_size - 1,
         peak_memory_bytes=max(running_peak_bytes, torch.cuda.max_memory_allocated()),
+        peak_memory_reserved_bytes=torch.cuda.max_memory_reserved(),
         draft_activation_bytes=draft_activation_bytes if profile_draft_memory else None,
         draft_cache_bytes=_cache_bytes(past_key_values_draft),
         target_cache_bytes=_cache_bytes(past_key_values_target),
+        target_hidden_states_bytes=hidden_states_bytes,
+        context_feature_bytes=context_feature_bytes,
+        draft_forward_s=draft_forward_timer.seconds,
+        context_feature_s=context_feature_timer.seconds,
+        target_forward_s=target_forward_timer.seconds,
     )
 
 
