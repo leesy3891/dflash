@@ -108,6 +108,78 @@ Per-sample entries under `samples` carry the same fields for one prompt, plus
 `task` and the per-step `accepted_lengths` / `acceptance_lengths` arrays, so
 results can be sliced by task or by step position after the fact.
 
+## How the memory numbers are computed
+
+Four primitives, all counting **CUDA storages deduplicated by `data_ptr`**, so a
+tensor and its views are never counted twice:
+
+| Helper | `model.py` | Used for |
+| --- | --- | --- |
+| `module_bytes(m)` | :247 | Draft weights — sums `m.parameters()` + `m.buffers()`. |
+| `_cache_bytes(cache)` | :157 | Draft / target KV cache — walks `cache.layers`, so it also picks up the conv and recurrent state of hybrid targets. |
+| `_tensor_bytes(ts)` | :184 | Target hidden states and the injected context feature. |
+| `torch.cuda.max_memory_allocated` / `max_memory_reserved` | :500-501 | Process peak, live tensors vs allocator pool. |
+
+Write `S` for the fitted context length, `p` for bytes per element (2 for
+bfloat16), and for the target `L_t` layers / `d` hidden / `H_kv` KV heads /
+`d_head`; for the draft `L_d` layers and `n_inj = len(target_layer_ids)` injected
+layers. Verified against Qwen3-8B at `S = 8192` (`L_t=36, L_d=5, d=4096, H_kv=8,
+d_head=128, n_inj=5`, draft `P = 1.049e9` params):
+
+| Metric | Where | Formula | Predicted | Measured |
+| --- | --- | --- | --- | --- |
+| `draft_weight_gb` | `benchmark.py` calls `module_bytes(draft)` | `P · p` | 1.953 GiB | 1.95 |
+| `max_target_cache_gb` | :504 | `2 · L_t · S · H_kv · d_head · p` | 1.160 GiB | 1.16 |
+| `max_draft_cache_gb` | :503 | `2 · L_d · S · H_kv · d_head · p` | 0.161 GiB | 0.16 |
+| `max_target_hidden_states_gb` | :336, :461 | `(L_t + 1) · S · d · p` | 2.313 GiB | 2.31 |
+| `max_context_feature_gb` | :343, :468 | `S · (n_inj · d) · p` | 0.313 GiB | 0.31 |
+
+The two KV-cache rows use the running sequence length (`S` plus tokens generated
+so far), and a sliding-window draft layer caps its own contribution at the window
+rather than `S` — which is why the Qwen3.5-9B draft cache stays nearly flat as
+context grows while the Qwen3-8B one scales linearly.
+
+`max_target_hidden_states_gb` is the `L_t + 1` hidden states the target must emit
+(`output_hidden_states=True`) purely so DFlash can build its injected feature,
+and `max_context_feature_gb` is that feature. Both scale with `S` and neither is
+paid by the baseline, so both are drafter overhead.
+
+**Draft activation** (`--profile-draft-memory` only, :374-398) is measured around
+the draft forward rather than derived:
+
+```
+activation = max over draft calls of [ peak_during_call − max(allocated_before, allocated_after) ]
+```
+
+Subtracting `allocated_after` matters: the *first* draft call populates the
+entire draft KV cache, which is persistent, not activation. Without the
+subtraction that one step reports 325.5 MB at 8k — 162.5 MB of cache plus
+163 MB of real activation — while every later step reports 16.7 MB. Netting out
+what the call leaves behind yields 163 MB and stops `draft_overhead_gb` from
+counting the KV cache twice.
+
+**Total** (`record.py:170`), each term a max over samples:
+
+```
+draft_overhead = draft_weight + draft_cache + target_hidden_states
+               + context_feature + draft_activation
+```
+
+At 8k on Qwen3-8B: `1.95 + 0.16 + 2.31 + 0.31 + 0.16 = 4.90 GB`. It is an upper
+bound, not a simultaneous peak — the terms do not all reach their maximum at the
+same instant.
+
+**Peak allocated vs reserved** (:500-501). `max_memory_allocated` counts live
+tensors; `max_memory_reserved` counts the caching allocator's pool, which is
+what `nvidia-smi` sees, plus a few hundred MB of CUDA context on top:
+
+```
+nvidia-smi  ≈  peak_memory_reserved_gb  +  CUDA context
+22.3 GiB    ≈  22.01 GB                 +  ~0.3 GB
+```
+
+Both are reset per sample, so they are per-request peaks, not run-wide ones.
+
 ## Running
 
 Both recipes below were verified on an RTX A6000. Weights land in `HF_HOME`.

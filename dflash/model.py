@@ -389,8 +389,13 @@ def dflash_generate(
             _crop_to(past_key_values_draft, start)
             if profile_draft_memory:
                 draft_peak_bytes = torch.cuda.max_memory_allocated()
+                # Subtract whatever the call left behind — the first draft call
+                # populates the whole draft KV cache, which is persistent, not
+                # activation. Netting it out keeps this term transient-only so
+                # it does not double-count draft_cache_bytes.
+                resident = max(before_draft_bytes, torch.cuda.memory_allocated())
                 draft_activation_bytes = max(
-                    draft_activation_bytes, draft_peak_bytes - before_draft_bytes
+                    draft_activation_bytes, draft_peak_bytes - resident
                 )
                 running_peak_bytes = max(running_peak_bytes, draft_peak_bytes)
             if isinstance(model, DFlash2DraftModel):
