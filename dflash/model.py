@@ -154,6 +154,48 @@ def _crop_to(cache, length):
     cache.crop(-remove)
 
 
+def _cache_bytes(cache) -> int:
+    """CUDA bytes held by a cache, counting each storage once.
+
+    Walks the per-layer tensors rather than assuming a key/value pair, so it
+    also covers the conv and recurrent states of hybrid targets.
+    """
+    seen: set[tuple] = set()
+    total = 0
+    pending = list(getattr(cache, "layers", []))
+    while pending:
+        item = pending.pop()
+        if isinstance(item, torch.Tensor):
+            if item.is_cuda:
+                storage = item.untyped_storage()
+                key = (item.device, storage.data_ptr())
+                if key not in seen:
+                    seen.add(key)
+                    total += storage.nbytes()
+        elif isinstance(item, (list, tuple)):
+            pending.extend(item)
+        elif isinstance(item, dict):
+            pending.extend(item.values())
+        elif hasattr(item, "__dict__"):
+            pending.extend(item.__dict__.values())
+    return total
+
+
+def module_bytes(module: nn.Module) -> int:
+    """CUDA bytes held by a module's parameters and buffers."""
+    seen: set[tuple] = set()
+    total = 0
+    for tensor in list(module.parameters()) + list(module.buffers()):
+        if not tensor.is_cuda:
+            continue
+        storage = tensor.untyped_storage()
+        key = (tensor.device, storage.data_ptr())
+        if key not in seen:
+            seen.add(key)
+            total += storage.nbytes()
+    return total
+
+
 def _attention_mask(query, key, *, is_causal, sliding_window):
     query_position = key.shape[-2] - query.shape[-2] + torch.arange(
         query.shape[-2], device=query.device
@@ -188,6 +230,7 @@ def dflash_generate(
     top_k: int = 0,
     block_size: int | None = None,
     return_stats: bool = False,
+    profile_draft_memory: bool = False,
 ):
     _validate_sampling(temperature, top_p, top_k)
     num_input_tokens = input_ids.shape[1]
@@ -222,6 +265,10 @@ def dflash_generate(
 
     decode_start = _cuda_time() if return_stats else None
     acceptance_lengths = []
+    accepted_lengths = []
+    proposed_lengths = []
+    draft_activation_bytes = 0
+    running_peak_bytes = 0
     start = num_input_tokens
     stop_tokens = (
         torch.tensor(stop_token_ids, dtype=output_ids.dtype, device=output_ids.device)
@@ -235,6 +282,14 @@ def dflash_generate(
         block_output_ids = output_ids[:, start : start + verify_size].clone()
         block_position_ids = position_ids[:, start : start + verify_size]
         if verify_size > 1:
+            if profile_draft_memory:
+                # reset_peak_memory_stats clears the run-wide peak, so fold the
+                # value seen so far into a running maximum before each reset.
+                running_peak_bytes = max(
+                    running_peak_bytes, torch.cuda.max_memory_allocated()
+                )
+                before_draft_bytes = torch.cuda.memory_allocated()
+                torch.cuda.reset_peak_memory_stats()
             noise_embedding = _raw_input_embeddings(
                 target,
                 block_output_ids,
@@ -248,6 +303,12 @@ def dflash_generate(
                 use_cache=True,
             )[:, 1 - verify_size :, :]
             _crop_to(past_key_values_draft, start)
+            if profile_draft_memory:
+                draft_peak_bytes = torch.cuda.max_memory_allocated()
+                draft_activation_bytes = max(
+                    draft_activation_bytes, draft_peak_bytes - before_draft_bytes
+                )
+                running_peak_bytes = max(running_peak_bytes, draft_peak_bytes)
             if isinstance(model, DFlash2DraftModel):
                 draft_tokens, draft_indices, draft_probs = model.propose(
                     draft_hidden,
@@ -303,6 +364,8 @@ def dflash_generate(
         start += produced
         _crop_to(past_key_values_target, start)
         acceptance_lengths.append(produced)
+        accepted_lengths.append(min(acceptance_length, produced))
+        proposed_lengths.append(verify_size - 1)
 
         if verify_size > 1:
             target_hidden = extract_context_feature(output.hidden_states, model.target_layer_ids)[:, :produced, :]
@@ -313,14 +376,32 @@ def dflash_generate(
         return output_ids
 
     num_output_tokens = output_ids.shape[1] - num_input_tokens
-    total_decode_time = _cuda_time() - decode_start
+    end_time = _cuda_time()
+    total_decode_time = end_time - decode_start
+    num_proposed = sum(proposed_lengths)
     return SimpleNamespace(
         output_ids=output_ids,
         num_input_tokens=num_input_tokens,
         num_output_tokens=num_output_tokens,
         time_to_first_token=time_to_first_token,
         time_per_output_token=total_decode_time / num_output_tokens,
+        total_latency=end_time - prefill_start,
+        decode_latency=total_decode_time,
         acceptance_lengths=acceptance_lengths,
+        accepted_lengths=accepted_lengths,
+        proposed_lengths=proposed_lengths,
+        num_accepted_tokens=sum(accepted_lengths),
+        num_proposed_tokens=num_proposed,
+        num_verify_steps=len(acceptance_lengths),
+        num_draft_calls=sum(1 for n in proposed_lengths if n > 0),
+        num_full_gamma_proposals=sum(
+            1 for n in proposed_lengths if n == block_size - 1
+        ),
+        gamma=block_size - 1,
+        peak_memory_bytes=max(running_peak_bytes, torch.cuda.max_memory_allocated()),
+        draft_activation_bytes=draft_activation_bytes if profile_draft_memory else None,
+        draft_cache_bytes=_cache_bytes(past_key_values_draft),
+        target_cache_bytes=_cache_bytes(past_key_values_target),
     )
 
 

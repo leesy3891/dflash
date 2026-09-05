@@ -2,10 +2,26 @@ from __future__ import annotations
 
 import argparse
 
+MODEL_PRESETS = {
+    "qwen3-8b": {
+        "model": "Qwen/Qwen3-8B",
+        "draft": "z-lab/Qwen3-8B-DFlash-b16",
+    },
+    "qwen3.5-9b": {
+        "model": "Qwen/Qwen3.5-9B",
+        "draft": "z-lab/Qwen3.5-9B-DFlash",
+    },
+}
+
 
 def _add_inference_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("backend", choices=("transformers", "mlx", "openai"))
-    parser.add_argument("--model", required=True)
+    parser.add_argument(
+        "--model-preset",
+        choices=sorted(MODEL_PRESETS),
+        help="Shorthand for a known target/draft pair; fills --model and --draft",
+    )
+    parser.add_argument("--model")
     parser.add_argument("--draft")
     parser.add_argument("--draft-bits", type=int, choices=[4, 8])
     parser.add_argument("--block-size", type=int)
@@ -34,10 +50,35 @@ def _parser() -> argparse.ArgumentParser:
 
     benchmark = commands.add_parser("benchmark", help="Run a benchmark")
     _add_inference_arguments(benchmark)
-    benchmark.add_argument("--dataset", required=True)
+    benchmark.add_argument("--dataset")
     benchmark.add_argument("--max-samples", type=int)
     benchmark.add_argument("--num-prompts", type=int, default=1024)
     benchmark.add_argument("--concurrency", type=int, default=1)
+    benchmark.add_argument(
+        "--context-length",
+        type=int,
+        help="Fit every prompt to this many input tokens instead of using --dataset",
+    )
+    benchmark.add_argument(
+        "--context-task",
+        help="Comma-separated LongBench-E tasks, or 'all' (default: summarization, long-form QA and code)",
+    )
+    benchmark.add_argument(
+        "--record-dir",
+        default="record",
+        help="Directory for <model>_<context-length>_<date>.json records",
+    )
+    benchmark.add_argument(
+        "--no-baseline",
+        dest="baseline",
+        action="store_false",
+        help="Skip the block_size=1 run, halving runtime but dropping speedup",
+    )
+    benchmark.add_argument(
+        "--profile-draft-memory",
+        action="store_true",
+        help="Measure the drafter's activation peak; perturbs latency slightly",
+    )
     return parser
 
 
@@ -131,12 +172,27 @@ def _generate_openai(args) -> None:
         print(content)
 
 
+def _resolve_models(parser: argparse.ArgumentParser, args) -> None:
+    preset = MODEL_PRESETS.get(args.model_preset)
+    if preset is not None:
+        args.model = args.model or preset["model"]
+        args.draft = args.draft or preset["draft"]
+    if args.model is None:
+        parser.error("--model is required unless --model-preset is given")
+    args.model_name = args.model_preset or args.model.rsplit("/", 1)[-1]
+
+
 def main(argv=None) -> None:
     parser = _parser()
     args = parser.parse_args(argv)
+    _resolve_models(parser, args)
     if args.backend != "openai" and args.draft is None:
         parser.error("--draft is required for local backends")
     if args.command == "benchmark":
+        if args.context_length is None and args.dataset is None:
+            parser.error("--dataset or --context-length is required")
+        if args.context_length is not None and args.backend != "transformers":
+            parser.error("--context-length is only supported by the transformers backend")
         from .benchmark import run
 
         run(args)

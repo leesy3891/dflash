@@ -121,6 +121,42 @@ dflash benchmark mlx \
     --dataset gsm8k --max-samples 128 --reasoning xhigh --block-size 5 --draft-bits 4
 ```
 
+### Context-length sweep
+
+Measures DFlash against a `block_size=1` baseline at a fixed input length.
+Prompts come from [LongBench-E](https://huggingface.co/datasets/THUDM/LongBench),
+the length-balanced split of LongBench, using its official per-task prompt
+templates; each document is middle-truncated so the templated prompt lands
+exactly on `--context-length`. Transformers backend only. `--model-preset`
+fills in a known target/draft pair (`qwen3-8b`, `qwen3.5-9b`);
+`--model`/`--draft` still work for anything else.
+
+```bash
+dflash benchmark transformers \
+    --model-preset qwen3.5-9b --context-length 16384 \
+    --max-samples 32 --max-new-tokens 512 --reasoning off \
+    --profile-draft-memory
+```
+
+Results are written to `record/<model>_<context-length>_<date>.json`, holding
+the full run configuration, a per-sample breakdown, and aggregates for
+acceptance rate, acceptance-length histogram, drafter proposal counts, TTFT,
+per-decode-token latency, throughput, token counts, and memory. The baseline is
+profiled into the same file under its own key, carrying only the metrics that
+apply to it — latency, tokens and memory, but nothing drafter-specific. Add
+`--no-baseline` to skip that run, which halves the runtime but drops the
+speedup number. `--context-task` selects LongBench-E tasks (default:
+summarization, long-form QA and code completion; `all` for every English task).
+
+See [PROFILING.md](PROFILING.md) for the file-by-file layout, the record
+schema, and per-model run recipes.
+
+Memory is reported as four numbers, because the CUDA allocator cannot attribute
+a peak to one of two models sharing a device: overall peak, draft weights,
+draft KV cache, and — under `--profile-draft-memory` — the drafter's activation
+peak, measured around each draft forward. That flag perturbs latency slightly,
+so leave it off when timing is what matters.
+
 ## Acknowledgement
 
 Huge thanks to [@dcw02](https://github.com/dcw02), [@gongy](https://github.com/gongy), and the team at [@modal-labs](https://github.com/modal-labs) for their fast, high-quality support in bringing DFlash to SGLang. And huge thanks as well to [@benchislett](https://github.com/benchislett) at NVIDIA for his work in bringing DFlash to vLLM and helping make it available to the broader serving community.

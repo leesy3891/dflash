@@ -11,6 +11,17 @@ from types import SimpleNamespace
 import requests
 from tqdm import tqdm
 
+MODEL_PRESETS = {
+    "qwen3-8b": {
+        "model": "Qwen/Qwen3-8B",
+        "draft": "z-lab/Qwen3-8B-DFlash-b16",
+    },
+    "qwen3.5-9b": {
+        "model": "Qwen/Qwen3.5-9B",
+        "draft": "z-lab/Qwen3.5-9B-DFlash",
+    },
+}
+
 DATASETS = {
     "gsm8k": {
         "load_args": ("openai/gsm8k", "main"),
@@ -423,8 +434,128 @@ def _run_openai(args: argparse.Namespace) -> None:
     print(f"{'=' * 50}")
 
 
+def _run_context_length(args: argparse.Namespace) -> None:
+    """Benchmark at a fixed input context length and write a record file."""
+    import torch
+
+    from . import context as context_module
+    from . import record as record_module
+    from .model import dflash_generate, module_bytes
+
+    torch.manual_seed(0)
+    device = torch.device("cuda:0")
+    target, draft_model, tokenizer = load_transformers_models(
+        args.model, args.draft, device
+    )
+    block_size = args.block_size if args.block_size is not None else draft_model.block_size
+
+    def apply_template(user_content: str) -> str:
+        return apply_chat_template(
+            tokenizer, [{"role": "user", "content": user_content}], args.reasoning
+        )
+
+    num_samples = args.max_samples if args.max_samples is not None else 32
+    tasks = context_module.resolve_tasks(args.context_task)
+    samples = context_module.build_dataset(
+        tokenizer, apply_template, args.context_length, num_samples, tasks=tasks
+    )
+
+    def encode(prompt: str):
+        return tokenizer.encode(
+            prompt, return_tensors="pt", add_special_tokens=False
+        ).to(device)
+
+    configs = {"dflash": block_size}
+    if args.baseline:
+        configs["baseline"] = 1
+
+    # Warm up at the real context length so allocator growth and kernel
+    # autotuning do not land inside the measured samples.
+    warmup_ids = encode(samples[0]["prompt"])
+    for size in configs.values():
+        dflash_generate(
+            draft_model, target, warmup_ids, min(64, args.max_new_tokens), None,
+            args.temperature, args.top_p, args.top_k, block_size=size,
+        )
+
+    stop = stop_token_ids(target, tokenizer)
+    runs: dict[str, list[dict]] = {name: [] for name in configs}
+    per_sample = []
+    for index, sample in enumerate(tqdm(samples, desc=f"ctx={args.context_length}")):
+        input_ids = encode(sample["prompt"])
+        entry = {
+            "index": index,
+            "task": sample["task"],
+            "source_index": sample["source_index"],
+            "fitted_input_tokens": sample["num_input_tokens"],
+        }
+        for name, size in configs.items():
+            torch.cuda.reset_peak_memory_stats()
+            stats = dflash_generate(
+                draft_model,
+                target=target,
+                input_ids=input_ids,
+                max_new_tokens=args.max_new_tokens,
+                stop_token_ids=stop,
+                temperature=args.temperature,
+                top_p=args.top_p,
+                top_k=args.top_k,
+                block_size=size,
+                return_stats=True,
+                profile_draft_memory=args.profile_draft_memory and name == "dflash",
+            )
+            metrics = record_module.sample_metrics(stats, drafter=name == "dflash")
+            runs[name].append(metrics)
+            entry[name] = metrics
+        per_sample.append(entry)
+
+    draft_weight_bytes = module_bytes(draft_model)
+    summaries = {
+        name: record_module.summarize(
+            values, block_size, draft_weight_bytes, drafter=name == "dflash"
+        )
+        for name, values in runs.items()
+    }
+    record_module.print_summary(summaries, block_size)
+
+    payload = {
+        "backend": "transformers",
+        "model": args.model,
+        "draft": args.draft,
+        "model_name": args.model_name,
+        "context_length": args.context_length,
+        "context_source": f"{context_module.LONGBENCH_REPO} (LongBench-E)",
+        "context_tasks": tasks,
+        "block_size": block_size,
+        "gamma": block_size - 1,
+        "num_samples": len(samples),
+        "max_new_tokens": args.max_new_tokens,
+        "temperature": args.temperature,
+        "top_p": args.top_p,
+        "top_k": args.top_k,
+        "reasoning": args.reasoning,
+        "baseline": args.baseline,
+        "profile_draft_memory": args.profile_draft_memory,
+        "device": torch.cuda.get_device_name(device),
+        "torch_version": torch.__version__,
+        "summary": summaries,
+        "samples": per_sample,
+    }
+    if args.baseline:
+        payload["decoding_speedup"] = (
+            summaries["baseline"]["aggregate_time_per_output_token_s"]
+            / summaries["dflash"]["aggregate_time_per_output_token_s"]
+        )
+    path = record_module.write(
+        args.record_dir, args.model_name, args.context_length, payload
+    )
+    print(f"Record written to {path}")
+
+
 def run(args: argparse.Namespace) -> None:
-    if args.backend == "transformers":
+    if getattr(args, "context_length", None) is not None:
+        _run_context_length(args)
+    elif args.backend == "transformers":
         _run_transformers(args)
     elif args.backend == "mlx":
         _run_mlx(args)
