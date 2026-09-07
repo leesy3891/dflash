@@ -21,18 +21,22 @@ from matplotlib.patches import Patch
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "visualization")
 
-CTX_LENGTHS = [4096, 8192, 16384]
-CTX_LABELS = {4096: "4K", 8192: "8K", 16384: "16K"}
+CTX_LENGTHS = [4096, 8192, 16384, 32768, 65536]
+CTX_LABELS = {4096: "4K", 8192: "8K", 16384: "16K", 32768: "32K", 65536: "64K"}
 MODELS = ["qwen3-8b", "qwen3.5-9b"]
 
 # One color per (model, context_length) -- reused in every panel.
 CONFIG_COLORS = {
-    ("qwen3-8b", 4096): "#9ecae1",
-    ("qwen3-8b", 8192): "#4292c6",
-    ("qwen3-8b", 16384): "#08519c",
-    ("qwen3.5-9b", 4096): "#fdc086",
-    ("qwen3.5-9b", 8192): "#e6550d",
-    ("qwen3.5-9b", 16384): "#8c2d04",
+    ("qwen3-8b", 4096): "#c6dbef",
+    ("qwen3-8b", 8192): "#6baed6",
+    ("qwen3-8b", 16384): "#2171b5",
+    ("qwen3-8b", 32768): "#08519c",
+    ("qwen3-8b", 65536): "#08306b",
+    ("qwen3.5-9b", 4096): "#fdd0a2",
+    ("qwen3.5-9b", 8192): "#fdae6b",
+    ("qwen3.5-9b", 16384): "#f16913",
+    ("qwen3.5-9b", 32768): "#d94801",
+    ("qwen3.5-9b", 65536): "#8c2d04",
 }
 MODEL_COLORS = {"qwen3-8b": "#2171b5", "qwen3.5-9b": "#e6550d"}
 MODEL_MARKERS = {"qwen3-8b": "o", "qwen3.5-9b": "s"}
@@ -65,6 +69,8 @@ def load_records():
         s["other_s"] = decode_total - s["drafter_latency_s"] - s["target_forward_s"]
         s["mean_decode_s"] = s["mean_latency_s"] - s["mean_ttft_s"]
         s["num_samples"] = d["num_samples"]
+        s["n_datasets"] = len({x["task"] for x in d["samples"]})
+        s["n_composed"] = sum(1 for x in d["samples"] if x.get("composed"))
         recs[(d["model_name"], d["context_length"])] = s
     return recs
 
@@ -73,7 +79,7 @@ def configs(recs):
     return [(m, c) for m in MODELS for c in CTX_LENGTHS if (m, c) in recs]
 
 
-def bar_positions(n_ctx=3, n_model=2, width=0.38):
+def bar_positions(n_ctx=len(CTX_LENGTHS), n_model=2, width=0.38):
     x = np.arange(n_ctx, dtype=float)
     return x, [x + (i - (n_model - 1) / 2) * width for i in range(n_model)], width
 
@@ -87,9 +93,9 @@ def grouped_bar(ax, recs, key, scale=1.0, fmt="{:.2f}"):
             val = recs[(model, ctx)][key] * scale
             ax.bar(offsets[mi][ci], val, width,
                    color=CONFIG_COLORS[(model, ctx)], edgecolor="white", linewidth=0.6)
-            ax.text(offsets[mi][ci], val, fmt.format(val), ha="center", va="bottom", fontsize=7.5)
+            ax.text(offsets[mi][ci], val, fmt.format(val), ha="center", va="bottom", fontsize=6.8)
             ax.text(offsets[mi][ci], 0, "8B" if model == "qwen3-8b" else "9B",
-                    ha="center", va="top", fontsize=6.5, color=MODEL_COLORS[model])
+                    ha="center", va="top", fontsize=6.0, color=MODEL_COLORS[model])
     ax.set_xticks(x)
     ax.set_xticklabels([CTX_LABELS[c] for c in CTX_LENGTHS])
     ax.set_xlabel("context length")
@@ -110,10 +116,10 @@ def stacked_bar(ax, recs, components, scale=1.0, total_fmt="{:.2f}"):
                        color=color, edgecolor="white", linewidth=0.5)
                 bottom += val
             ax.text(offsets[mi][ci], bottom, total_fmt.format(bottom),
-                    ha="center", va="bottom", fontsize=7.5)
+                    ha="center", va="bottom", fontsize=6.8)
             # model tag under each stack
             ax.text(offsets[mi][ci], 0, "8B" if model == "qwen3-8b" else "9B",
-                    ha="center", va="top", fontsize=6.5, color=MODEL_COLORS[model])
+                    ha="center", va="top", fontsize=6.0, color=MODEL_COLORS[model])
     ax.set_xticks(x)
     ax.set_xticklabels([CTX_LABELS[c] for c in CTX_LENGTHS])
     ax.set_xlabel("context length")
@@ -134,12 +140,36 @@ def line_plot(ax, recs, key, scale=1.0, fmt="{:.2f}"):
                        color=CONFIG_COLORS[(model, xv)],
                        edgecolor=MODEL_COLORS[model], linewidth=1.2)
             ax.annotate(fmt.format(yv), (xv, yv), textcoords="offset points",
-                        xytext=(0, 9), ha="center", fontsize=7.5)
+                        xytext=(0, 9), ha="center", fontsize=6.8)
     ax.set_xscale("log", base=2)
     ax.set_xticks(CTX_LENGTHS)
     ax.set_xticklabels([CTX_LABELS[c] for c in CTX_LENGTHS])
     ax.set_xlabel("context length")
     ax.margins(y=0.22)
+
+
+def sample_footnote(recs):
+    """Per-context-length sample bookkeeping, shown under the color legend."""
+    parts = []
+    for ctx in CTX_LENGTHS:
+        got = [recs[(m, ctx)] for m in MODELS if (m, ctx) in recs]
+        if not got:
+            continue
+        n = " / ".join(str(g["num_samples"]) for g in got) if len({g["num_samples"] for g in got}) > 1 \
+            else str(got[0]["num_samples"])
+        ds = " / ".join(str(g["n_datasets"]) for g in got) if len({g["n_datasets"] for g in got}) > 1 \
+            else str(got[0]["n_datasets"])
+        comp = max(g["n_composed"] for g in got)
+        extra = f", {comp} composed" if comp else ""
+        parts.append(f"{CTX_LABELS[ctx]}: n={n} ({ds} datasets{extra})")
+    line1 = "Samples per context length [8B / 9B where they differ] — " + "  ·  ".join(parts)
+    tok = "  ·  ".join(
+        f"{CTX_LABELS[c]}: " + " / ".join(f"{recs[(m, c)]['mean_output_tokens']:.0f}"
+                                          for m in MODELS if (m, c) in recs)
+        for c in CTX_LENGTHS if any((m, c) in recs for m in MODELS))
+    line2 = ("Mean output tokens per request [8B / 9B] — " + tok +
+             "   (long-context runs emit far fewer tokens; compare per-token metrics, not per-request ones)")
+    return [line1, line2]
 
 
 def main():
@@ -156,10 +186,10 @@ def main():
         "figure.dpi": 130,
     })
 
-    fig, axes = plt.subplots(3, 3, figsize=(16.5, 13.5))
+    fig, axes = plt.subplots(3, 3, figsize=(19.5, 14.0))
     fig.suptitle(
         "DFlash speculative decoding — LongBench-E benchmark-wide averages "
-        "(Qwen3-8B vs Qwen3.5-9B @ 4K / 8K / 16K, block=16, gamma=15, greedy)",
+        "(Qwen3-8B vs Qwen3.5-9B @ 4K / 8K / 16K / 32K / 64K, block=16, gamma=15, greedy)",
         fontsize=13, fontweight="bold", y=0.985,
     )
 
@@ -179,7 +209,7 @@ def main():
     ax.set_xlabel("accepted tokens in a verify step")
     ax.set_ylabel("share of verify steps (%)")
     ax.set_title("Acceptance length distribution\n(16 = full \u03b3 block accepted)")
-    ax.legend(fontsize=7, ncol=2)
+    ax.legend(fontsize=6.2, ncol=2)
 
     # (3) peak memory
     ax = axes[0, 2]
@@ -209,9 +239,9 @@ def main():
             ax.bar(offsets[mi][ci], s["mean_decode_s"], width, bottom=s["mean_ttft_s"],
                    color=col, edgecolor="white", linewidth=0.6)
             ax.text(offsets[mi][ci], s["mean_latency_s"], f"{s['mean_latency_s']:.1f}",
-                    ha="center", va="bottom", fontsize=7.5)
+                    ha="center", va="bottom", fontsize=6.8)
             ax.text(offsets[mi][ci], 0, "8B" if model == "qwen3-8b" else "9B",
-                    ha="center", va="top", fontsize=6.5, color=MODEL_COLORS[model])
+                    ha="center", va="top", fontsize=6.0, color=MODEL_COLORS[model])
     ax.set_xticks(x)
     ax.set_xticklabels([CTX_LABELS[c] for c in CTX_LENGTHS])
     ax.set_xlabel("context length")
@@ -257,10 +287,13 @@ def main():
                for m in MODELS for c in CTX_LENGTHS]
     handles += [Line2D([0], [0], color=MODEL_COLORS[m], marker=MODEL_MARKERS[m],
                        label=f"{m} (trend)") for m in MODELS]
-    fig.legend(handles=handles, loc="lower center", ncol=8, fontsize=8.5,
-               frameon=False, bbox_to_anchor=(0.5, 0.005))
+    fig.legend(handles=handles, loc="lower center", ncol=10, fontsize=8.0,
+               frameon=False, bbox_to_anchor=(0.5, 0.038))
+    for i, line in enumerate(sample_footnote(recs)):
+        fig.text(0.5, 0.024 - i * 0.013, line, ha="center", fontsize=7.6,
+                 color="#333333")
 
-    fig.tight_layout(rect=[0, 0.035, 1, 0.965])
+    fig.tight_layout(rect=[0, 0.062, 1, 0.965])
     png = os.path.join(OUT_DIR, "dflash_summary_overview.png")
     fig.savefig(png)
     fig.savefig(os.path.join(OUT_DIR, "dflash_summary_overview.pdf"))
