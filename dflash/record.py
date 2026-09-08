@@ -37,6 +37,13 @@ def sample_metrics(stats, *, drafter: bool = True) -> dict:
         "peak_site": getattr(stats, "peak_site", None),
         "target_cache_bytes": stats.target_cache_bytes,
         "target_forward_s": stats.target_forward_s,
+        # Phase-local memory. Recorded for the baseline too, so the target's own
+        # prefill activation can be read off a run that has no drafter in it and
+        # subtracted from DFlash's peak rather than guessed at.
+        "phase_memory": getattr(stats, "phase_memory", None),
+        "target_prefill_transient_bytes": getattr(
+            stats, "target_prefill_transient_bytes", None
+        ),
     }
     if not drafter:
         return metrics
@@ -56,6 +63,32 @@ def sample_metrics(stats, *, drafter: bool = True) -> dict:
         "context_feature_s": stats.context_feature_s,
         "accepted_lengths": stats.accepted_lengths,
         "acceptance_lengths": stats.acceptance_lengths,
+        # The drafter's own prefill: the first draft call of the request, which
+        # projects the whole context feature and fills the draft KV cache.
+        "first_draft_forward_s": stats.first_draft_forward_s,
+        "first_draft_peak_memory_bytes": stats.first_draft_peak_memory_bytes,
+        "first_draft_allocated_before_bytes": stats.first_draft_allocated_before_bytes,
+        "first_draft_cache_bytes": stats.first_draft_cache_bytes,
+        "first_draft_cache_pre_crop_bytes": stats.first_draft_cache_pre_crop_bytes,
+        "first_draft_fraction_of_decode": stats.first_draft_fraction_of_decode,
+        "first_draft_transient_bytes": stats.first_draft_transient_bytes,
+        "first_draft_stage_s": stats.first_draft_stage_s,
+        # Steady state: every draft call after the first.
+        "steady_draft_calls": stats.steady_draft_calls,
+        "mean_steady_draft_forward_s": stats.mean_steady_draft_forward_s,
+        "mean_steady_attention_s": stats.mean_steady_attention_s,
+        "mean_steady_cache_update_s": stats.mean_steady_cache_update_s,
+        "mean_steady_context_kv_projection_s": stats.mean_steady_context_kv_projection_s,
+        "mean_steady_context_projection_s": stats.mean_steady_context_projection_s,
+        "mean_steady_output_head_s": stats.mean_steady_output_head_s,
+        "steady_draft_cache_bytes": stats.steady_draft_cache_bytes,
+        "steady_draft_peak_memory_bytes": stats.steady_draft_peak_memory_bytes,
+        "steady_draft_transient_bytes": stats.steady_draft_transient_bytes,
+        # Classification of what the drafter keeps resident.
+        "draft_weight_bytes": stats.draft_weight_bytes,
+        "prefill_context_feature_bytes": stats.prefill_context_feature_bytes,
+        "steady_context_feature_bytes": stats.steady_context_feature_bytes,
+        "dflash_persistent_resident_bytes": stats.dflash_persistent_resident_bytes,
     }
 
 
@@ -136,10 +169,16 @@ def _budget(summary: dict, *, drafter: bool) -> dict:
 
     Every term is a max over samples of a quantity that is resident for the
     whole run, so the sum is an upper bound on the resident part rather than a
-    simultaneous reading. What is left over -- ``transient_gb`` -- is the
-    activation the run needed on top of everything it keeps: attention
-    workspaces, logits, and (under ``--hidden-states full``) the target output
-    object that stays referenced into the first decode step.
+    simultaneous reading. What is left over -- ``transient_gb`` -- is not the
+    activation at the peak: the maxima it subtracts are taken at different
+    moments (the target KV is largest at the end of decode, the prefill's
+    residual streams before the first token exists, the peak itself inside the
+    target's last prefill layer), so the remainder mixes three instants and can
+    even come out negative.
+
+    Kept because every record in the earlier sweeps carries it and dropping it
+    would make them incomparable. ``summary["phase_memory"]`` is the figure to
+    read instead: each of its rows is one instant. See PhaseMemory.
     """
     terms = {
         "target_weight_gb": summary["target_weight_gb"],
@@ -173,6 +212,99 @@ def _budget(summary: dict, *, drafter: bool) -> dict:
     }
 
 
+def _phase_names(runs: list[dict]) -> list[str]:
+    """Every phase seen, in the order the phases first ran."""
+    names: list[str] = []
+    for run in runs:
+        for name in run.get("phase_memory") or {}:
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def _phase_transient(record: dict) -> float:
+    """A phase's borrowed bytes: its peak less what stood on both sides of it."""
+    resident = max(
+        record["allocated_before_bytes"], record["allocated_after_bytes"]
+    )
+    return max(record["interval_peak_bytes"] - resident, 0)
+
+
+def aggregate_phases(runs: list[dict], target_weight_bytes: int = 0) -> dict:
+    """Per phase, the largest occurrence across samples and the per-sample means.
+
+    The peak of a phase carries the component split read inside it, so the
+    entries here are simultaneous decompositions: target KV, draft KV, selected
+    hidden states, injected context feature and draft weights, all measured at
+    one instant, plus the allocation that reading does not name.
+    """
+    aggregate: dict = {}
+    for name in _phase_names(runs):
+        entries = [
+            (index, run["phase_memory"][name])
+            for index, run in enumerate(runs)
+            if name in (run.get("phase_memory") or {})
+        ]
+        peaks = [
+            (entry["peak"]["interval_peak_bytes"], index, entry)
+            for index, entry in entries
+            if entry.get("peak")
+        ]
+        if not peaks:
+            continue
+        peak_bytes, peak_sample, peak_entry = max(peaks, key=lambda item: item[0])
+        record = peak_entry["peak"]
+        components = dict(record.get("components") or {})
+        components.pop("allocated_bytes", None)
+        # Resident at every instant of every phase, and not something the probe
+        # has to read: the target's parameters. Listed with the rest so the
+        # split at the peak adds up to the peak.
+        components["target_weight_bytes"] = target_weight_bytes
+        aggregate[name] = {
+            "mean_occurrences_per_sample": statistics.mean(
+                entry["count"] for _, entry in entries
+            ),
+            "mean_allocated_before_gb": statistics.mean(
+                entry["mean_allocated_before_bytes"] for _, entry in entries
+            )
+            / _GB,
+            "mean_allocated_after_gb": statistics.mean(
+                entry["mean_allocated_after_bytes"] for _, entry in entries
+            )
+            / _GB,
+            "mean_interval_peak_gb": statistics.mean(
+                entry["mean_interval_peak_bytes"] for _, entry in entries
+            )
+            / _GB,
+            "max_interval_peak_gb": peak_bytes / _GB,
+            "max_at_sample": peak_sample,
+            "peak_interval_label": record.get("peak_interval_label"),
+            "peak_allocated_before_gb": record["allocated_before_bytes"] / _GB,
+            "peak_allocated_after_gb": record["allocated_after_bytes"] / _GB,
+            "peak_transient_gb": _phase_transient(record) / _GB,
+            "peak_components_gb": {
+                key: value / _GB for key, value in components.items()
+            },
+            # What the reading at the peak does not name: attention
+            # workspaces, logits, the target's own layer activations. This is
+            # one instant minus the components live at that same instant, so
+            # unlike transient_gb it is a real remainder rather than a residue
+            # of three different moments.
+            "peak_unattributed_gb": (
+                peak_bytes - sum(components.values())
+            )
+            / _GB,
+        }
+    return aggregate
+
+
+def peak_phase(phases: dict) -> str | None:
+    """The phase whose largest occurrence set the run's high-water mark."""
+    if not phases:
+        return None
+    return max(phases, key=lambda name: phases[name]["max_interval_peak_gb"])
+
+
 def _maximum(values: list, default=0):
     present = [v for v in values if v is not None]
     return max(present) if present else default
@@ -182,6 +314,93 @@ def _total_or_none(runs: list[dict], key: str):
     """Sum a per-sample timing, or None when the timing was not collected."""
     values = [r.get(key) for r in runs]
     return sum(values) if all(v is not None for v in values) else None
+
+
+def _first_and_steady_draft(runs: list[dict], total_decode: float) -> dict:
+    """The drafter's own prefill, and its steady state, kept apart.
+
+    The first draft call of a request projects the whole prompt's context
+    feature and fills the draft KV cache with one entry per prompt token; every
+    later call adds only the tokens the last verify accepted. The first is O(S)
+    and happens once, the second is O(accepted) and happens every step, so a
+    single mean over all draft calls describes neither.
+    """
+
+    def mean_of(key):
+        values = [r.get(key) for r in runs if r.get(key) is not None]
+        return statistics.mean(values) if values else None
+
+    stage_totals: dict[str, float] = {}
+    for run in runs:
+        for name, value in (run.get("first_draft_stage_s") or {}).items():
+            if value is not None:
+                stage_totals[name] = stage_totals.get(name, 0.0) + value
+    samples = len(runs) or 1
+    return {
+        # First draft call
+        "mean_first_draft_forward_s": mean_of("first_draft_forward_s"),
+        "total_first_draft_forward_s": _total_or_none(runs, "first_draft_forward_s"),
+        "max_first_draft_peak_memory_gb": _maximum(
+            [r["first_draft_peak_memory_bytes"] for r in runs]
+        )
+        / _GB,
+        "max_first_draft_transient_gb": _maximum(
+            [r["first_draft_transient_bytes"] for r in runs]
+        )
+        / _GB,
+        "max_first_draft_cache_gb": _maximum(
+            [r["first_draft_cache_bytes"] for r in runs]
+        )
+        / _GB,
+        "max_first_draft_cache_pre_crop_gb": _maximum(
+            [r["first_draft_cache_pre_crop_bytes"] for r in runs]
+        )
+        / _GB,
+        "mean_first_draft_fraction_of_decode": mean_of("first_draft_fraction_of_decode"),
+        # The aggregate share, weighted by decode time rather than by request:
+        # a long generation amortises the first call, a short one does not.
+        "first_draft_share_of_decode": (
+            None
+            if _total_or_none(runs, "first_draft_forward_s") is None or not total_decode
+            else _total_or_none(runs, "first_draft_forward_s") / total_decode
+        ),
+        "first_draft_stage_s": {
+            name: total / samples for name, total in stage_totals.items()
+        }
+        or None,
+        # Steady state
+        "mean_steady_draft_calls": statistics.mean(
+            r["steady_draft_calls"] for r in runs
+        ),
+        "mean_steady_draft_forward_s": mean_of("mean_steady_draft_forward_s"),
+        "mean_steady_attention_s": mean_of("mean_steady_attention_s"),
+        "mean_steady_cache_update_s": mean_of("mean_steady_cache_update_s"),
+        "mean_steady_context_kv_projection_s": mean_of(
+            "mean_steady_context_kv_projection_s"
+        ),
+        "mean_steady_context_projection_s": mean_of("mean_steady_context_projection_s"),
+        "mean_steady_output_head_s": mean_of("mean_steady_output_head_s"),
+        "max_steady_draft_cache_gb": _maximum(
+            [r["steady_draft_cache_bytes"] for r in runs]
+        )
+        / _GB,
+        "max_steady_draft_peak_memory_gb": _maximum(
+            [r["steady_draft_peak_memory_bytes"] for r in runs]
+        )
+        / _GB,
+        "max_steady_draft_transient_gb": _maximum(
+            [r["steady_draft_transient_bytes"] for r in runs]
+        )
+        / _GB,
+        "max_prefill_context_feature_gb": _maximum(
+            [r["prefill_context_feature_bytes"] for r in runs]
+        )
+        / _GB,
+        "max_steady_context_feature_gb": _maximum(
+            [r["steady_context_feature_bytes"] for r in runs]
+        )
+        / _GB,
+    }
 
 
 def summarize(
@@ -242,7 +461,18 @@ def summarize(
         # The target's own weights. The baseline pays these too, so they are
         # the floor both configurations are measured against.
         "target_weight_gb": target_weight_bytes / _GB,
+        # Phase-local memory: per phase, a decomposition read at one instant.
+        # See aggregate_phases and PhaseMemory.
+        "phase_memory": aggregate_phases(runs, target_weight_bytes),
+        # The target's prefill activation, measured inside the prefill phase
+        # rather than inferred from the run's peak. The baseline pays this too,
+        # so it is target-architecture overhead, never drafter overhead.
+        "max_target_prefill_transient_gb": _maximum(
+            [r.get("target_prefill_transient_bytes") for r in runs]
+        )
+        / _GB,
     }
+    summary["peak_phase"] = peak_phase(summary["phase_memory"])
     if not drafter:
         summary["mean_decode_steps"] = statistics.mean(
             r["num_decode_steps"] for r in runs
@@ -328,6 +558,31 @@ def summarize(
             ),
         }
     )
+    summary.update(_first_and_steady_draft(runs, total_decode))
+    # What is DFlash's and what is the target architecture's. Keeping the two
+    # apart is the whole point: a target KV cache and a target prefill
+    # activation grow with context whether or not a drafter exists.
+    summary["overhead_split"] = {
+        "dflash_persistent_resident_gb": _maximum(
+            [r["dflash_persistent_resident_bytes"] for r in runs]
+        )
+        / _GB,
+        "dflash_draft_weight_gb": draft_weight_bytes / _GB,
+        "dflash_draft_kv_gb": max_draft_cache / _GB,
+        "dflash_selected_hidden_gb": max_hidden_states / _GB,
+        "dflash_context_feature_gb": max_context_feature / _GB,
+        "dflash_first_draft_transient_gb": _maximum(
+            [r["first_draft_transient_bytes"] for r in runs]
+        )
+        / _GB,
+        "dflash_steady_draft_transient_gb": _maximum(
+            [r["steady_draft_transient_bytes"] for r in runs]
+        )
+        / _GB,
+        "target_weight_gb": target_weight_bytes / _GB,
+        "target_kv_gb": summary["max_target_cache_gb"],
+        "target_prefill_transient_gb": summary["max_target_prefill_transient_gb"],
+    }
     # Built last: it reads the drafter terms above, which only exist by now.
     summary["memory_budget"] = _budget(summary, drafter=True)
     return summary
@@ -399,7 +654,33 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
                     ),
                 )
         _print_budget(summary)
+        _print_phases(summary)
 
+    def _print_phases(summary: dict) -> None:
+        """Per phase: what it entered with, what it peaked at, what it kept."""
+        phases = summary.get("phase_memory")
+        if not phases:
+            return
+        hot = summary.get("peak_phase")
+        print("  -- phase-local memory (GB; in/peak/out are one occurrence)")
+        print(f"    {'phase':<34}{'in':>8}{'peak':>8}{'out':>8}{'borrowed':>10}")
+        for name, entry in phases.items():
+            print(
+                f"    {name:<34}"
+                f"{entry['peak_allocated_before_gb']:8.2f}"
+                f"{entry['max_interval_peak_gb']:8.2f}"
+                f"{entry['peak_allocated_after_gb']:8.2f}"
+                f"{entry['peak_transient_gb']:10.2f}"
+                + ("   <- peak" if name == hot else "")
+            )
+        if hot:
+            components = phases[hot]["peak_components_gb"]
+            row(f"  at the peak phase ({hot})", "")
+            for key, value in components.items():
+                if key == "allocated_bytes":
+                    continue
+                row(f"    {key.replace('_bytes', '')}", f"{value:7.2f} GB")
+            row("    unattributed", f"{phases[hot]['peak_unattributed_gb']:7.2f} GB")
 
     def _print_budget(summary: dict) -> None:
         """The peak, split into what the run keeps and what it borrows."""
@@ -452,6 +733,44 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
     # The per-term split is printed by the memory budget above; this is the
     # drafter-only subtotal, the figure the context sweep compares across runs.
     row("Total drafter overhead", f"{dflash['draft_overhead_gb']:.2f} GB")
+    print("  -- first draft call (the drafter's own prefill)")
+    row(
+        "Latency (mean per request)",
+        f"{(dflash['mean_first_draft_forward_s'] or 0) * 1000:.1f}ms "
+        f"({(dflash['mean_first_draft_fraction_of_decode'] or 0) * 100:.1f}% of decode)",
+    )
+    row(
+        "Peak / borrowed",
+        f"{dflash['max_first_draft_peak_memory_gb']:.2f} / "
+        f"{dflash['max_first_draft_transient_gb']:.2f} GB",
+    )
+    row(
+        "Draft KV left behind (pre-crop)",
+        f"{dflash['max_first_draft_cache_gb']:.2f} "
+        f"({dflash['max_first_draft_cache_pre_crop_gb']:.2f}) GB",
+    )
+    stages = dflash.get("first_draft_stage_s") or {}
+    if any(v for v in stages.values()):
+        row(
+            "  stages",
+            ", ".join(f"{k} {v * 1000:.1f}ms" for k, v in stages.items()),
+        )
+    print("  -- steady-state draft calls")
+    row("Calls per request (mean)", f"{dflash['mean_steady_draft_calls']:.1f}")
+    row(
+        "Forward (mean per call)",
+        f"{(dflash['mean_steady_draft_forward_s'] or 0) * 1000:.2f}ms",
+    )
+    for key, label in (
+        ("mean_steady_attention_s", "attention"),
+        ("mean_steady_cache_update_s", "KV append"),
+        ("mean_steady_context_kv_projection_s", "context K/V projection"),
+        ("mean_steady_context_projection_s", "context projection"),
+        ("mean_steady_output_head_s", "output head"),
+    ):
+        if dflash.get(key) is not None:
+            row(f"  {label}", f"{dflash[key] * 1000:.2f}ms")
+    row("Draft KV (max)", f"{dflash['max_steady_draft_cache_gb']:.2f} GB")
     if dflash["drafter_latency_s"] is not None:
         print("  -- drafter latency")
         row("Draft forward", f"{dflash['draft_forward_s']:.1f}s")

@@ -672,6 +672,7 @@ def _run_context_length(args: argparse.Namespace) -> None:
                 block_size=size,
                 return_stats=True,
                 profile_draft_memory=args.profile_draft_memory and name == "dflash",
+                profile_draft_stages=args.profile_draft_stages,
                 hidden_states=args.hidden_states,
                 prefill_chunk=args.prefill_chunk,
             )
@@ -732,6 +733,7 @@ def _run_context_length(args: argparse.Namespace) -> None:
         "reasoning": args.reasoning,
         "baseline": args.baseline,
         "profile_draft_memory": args.profile_draft_memory,
+        "profile_draft_stages": args.profile_draft_stages,
         "device": torch.cuda.get_device_name(0),
         "torch_version": torch.__version__,
         "summary": summaries,

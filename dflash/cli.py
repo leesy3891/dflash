@@ -156,6 +156,16 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Measure the drafter's activation peak; perturbs latency slightly",
     )
+    benchmark.add_argument(
+        "--no-draft-stage-profiling",
+        dest="profile_draft_stages",
+        action="store_false",
+        help="Skip the CUDA-event timers inside the drafter (context "
+        "projection, context K/V projection, KV append, attention, output "
+        "head). They are what separates the first draft call -- the drafter's "
+        "own O(S) prefill -- from the steady state, at the cost of a few "
+        "events per draft layer per call",
+    )
     return parser
 
 

@@ -1,4 +1,5 @@
 import time
+from contextlib import ExitStack
 from types import SimpleNamespace
 from typing import ClassVar
 
@@ -379,8 +380,12 @@ class PeakTracker:
     set the peak.
     """
 
-    def __init__(self, enabled: bool = True):
+    def __init__(self, enabled: bool = True, on_interval=None):
         self.enabled = bool(enabled) and torch.cuda.is_available()
+        # Called with (label, interval peak bytes) as each interval closes, so
+        # PhaseMemory can fold the intervals back into the phase that contains
+        # them without a second pass over the allocator counters.
+        self._on_interval = on_interval
         self.num_devices = torch.cuda.device_count() if self.enabled else 0
         self.peak_bytes = 0
         self.peak_site: dict | None = None
@@ -418,6 +423,8 @@ class PeakTracker:
             _device_bytes(index, "peak") for index in range(self.num_devices)
         ]
         total = sum(per_device)
+        if self._on_interval is not None:
+            self._on_interval(self._label, total)
         self._device_maxima = [
             max(seen, now) for seen, now in zip(self._device_maxima, per_device)
         ]
@@ -467,6 +474,132 @@ class PeakTracker:
     def sum_of_device_maxima_bytes(self) -> int:
         """The old, over-counting figure, kept so records stay comparable."""
         return sum(self._device_maxima)
+
+
+class PhaseMemory:
+    """What is simultaneously live in each phase of a request.
+
+    The peak-minus-resident figure the sweep reported before -- ``transient_gb``
+    -- subtracts a sum of per-component maxima from the peak. Each of those
+    maxima is taken at whatever moment that component happened to be largest,
+    and those moments are not the same one: the target's KV cache is largest at
+    the end of decode, the prefill's residual streams are largest before the
+    first token exists, and the peak itself lands in the middle of the target's
+    last prefill layer. Their sum is not a decomposition of any single instant,
+    so the remainder is not "the activation on top of what the run keeps" -- it
+    is a residue of three different instants, and can even come out negative.
+
+    This records the phases instead. A phase is a named span of the run;
+    ``PeakTracker`` cuts each span into intervals and hands back the largest
+    allocation seen inside each. For every phase this keeps the allocation on
+    entry and on exit, the largest interval the phase contained, and -- taken at
+    the end of the occurrence that peaked -- how large each component was at
+    that point. Those component readings do come from one instant, so they add
+    up to a decomposition rather than a bound.
+
+    Three limits worth stating. The reading is taken when the peaking occurrence
+    closes, not at the allocator's high-water mark inside it, which no API
+    exposes. On a sharded target a phase spans several intervals (one per
+    decoder layer), so the reading is the phase's end rather than the peaking
+    layer's. And where a component *shrinks* inside a phase the close reading
+    catches its lower value, and the difference lands in the unattributed
+    remainder: on Qwen3.5-9B the first ``decode: target verify`` releases the
+    gated delta-rule prefill buffers, so it reports a target KV of 0.18 GB
+    where 1.67 GB was live on the way in. The bracket is still in the record --
+    ``allocated_before_bytes`` on that phase, and the probe on the phase before
+    it -- and the phase that sets the peak has no shrinking component.
+    """
+
+    def __init__(self, enabled: bool, probe) -> None:
+        self.enabled = bool(enabled)
+        self._probe = probe
+        self.phases: dict[str, dict] = {}
+        self._current: dict | None = None
+        self._order: list[str] = []
+
+    def begin(self, name: str, **site) -> None:
+        """Close the phase in flight and open one called ``name``."""
+        if not self.enabled:
+            return
+        self._close()
+        self._current = {
+            "name": name,
+            "site": site,
+            "before_bytes": _all_device_live(),
+            "interval_peak_bytes": 0,
+            "peak_interval_label": name,
+        }
+
+    def interval(self, label: str, peak_bytes: int) -> None:
+        """Fold one PeakTracker interval into the phase that contains it."""
+        current = self._current
+        if current is None:
+            return
+        if peak_bytes > current["interval_peak_bytes"]:
+            current["interval_peak_bytes"] = peak_bytes
+            current["peak_interval_label"] = label
+
+    def finish(self) -> None:
+        if self.enabled:
+            self._close()
+            self._current = None
+
+    def _close(self) -> None:
+        current = self._current
+        if current is None:
+            return
+        name = current["name"]
+        entry = self.phases.get(name)
+        if entry is None:
+            entry = self.phases[name] = {
+                "count": 0,
+                "before_bytes_total": 0,
+                "after_bytes_total": 0,
+                "interval_peak_bytes_total": 0,
+                "peak": None,
+                "first": None,
+            }
+            self._order.append(name)
+        record = {
+            "allocated_before_bytes": current["before_bytes"],
+            "allocated_after_bytes": _all_device_live(),
+            "interval_peak_bytes": current["interval_peak_bytes"],
+            "peak_interval_label": current["peak_interval_label"],
+            "occurrence": entry["count"],
+            **current["site"],
+        }
+        entry["count"] += 1
+        entry["before_bytes_total"] += record["allocated_before_bytes"]
+        entry["after_bytes_total"] += record["allocated_after_bytes"]
+        entry["interval_peak_bytes_total"] += record["interval_peak_bytes"]
+        # The component probe walks both KV caches, which is the one reading
+        # here expensive enough to show up in a per-token latency. Take it only
+        # when this occurrence is the largest the phase has seen -- true for the
+        # first step and then rarely, so the steady state pays nothing.
+        if (
+            entry["peak"] is None
+            or record["interval_peak_bytes"] > entry["peak"]["interval_peak_bytes"]
+        ):
+            entry["peak"] = {**record, "components": self._probe()}
+        if entry["first"] is None:
+            entry["first"] = dict(entry["peak"])
+        self._current = None
+
+    def summary(self) -> dict:
+        """Per-phase records, in the order the phases first ran."""
+        out = {}
+        for name in self._order:
+            entry = self.phases[name]
+            count = entry["count"] or 1
+            out[name] = {
+                "count": entry["count"],
+                "mean_allocated_before_bytes": entry["before_bytes_total"] / count,
+                "mean_allocated_after_bytes": entry["after_bytes_total"] / count,
+                "mean_interval_peak_bytes": entry["interval_peak_bytes_total"] / count,
+                "peak": entry["peak"],
+                "first": entry["first"],
+            }
+        return out
 
 
 def _tensor_bytes(tensors) -> int:
@@ -532,6 +665,64 @@ class _GpuTimer:
         return self.elapsed_ms / 1000.0
 
 
+# A timer that is switched off costs two attribute lookups and nothing else,
+# so one shared instance stands in wherever stage profiling is disabled.
+_DISABLED_TIMER = _GpuTimer(False)
+
+# The drafter's stage timers reach the attention module through a module-level
+# handle rather than an argument. Every kwarg the decoder layer takes is
+# forwarded into the attention kernel, so anything threaded through the call
+# signature would end up in SDPA. The drafter is only ever driven by
+# dflash_generate, which sets this at the top of every call -- to its own
+# _DraftStages or to None -- and clears it once the decode loop is done, so a
+# call can never read a handle left behind by an earlier one. Nothing here
+# touches a tensor, so a run with stage timing on produces the same tokens as
+# one without.
+_DRAFT_STAGES: "_DraftStages | None" = None
+
+
+class _DraftStages:
+    """CUDA-event timers for the stages inside one drafter forward.
+
+    Split into two buckets. The first draft call of a request projects the whole
+    prompt's context feature into the draft KV cache -- O(S) work that happens
+    once; every later call projects only the tokens the last verify accepted --
+    O(accepted) work that happens every step. Averaging the two together hides
+    the term that grows with context, which is the one this profiling is after.
+    """
+
+    NAMES = (
+        "context_projection",     # fc + hidden_norm over the injected feature
+        "context_kv_projection",  # k_proj/v_proj over the injected feature
+        "cache_update",           # appending those K/V to the draft cache
+        "attention",              # the drafter's own SDPA
+        "output_head",            # the target's lm_head over draft hidden
+    )
+
+    def __init__(self, enabled: bool) -> None:
+        self.enabled = bool(enabled)
+        self.first = {name: _GpuTimer(enabled) for name in self.NAMES}
+        self.steady = {name: _GpuTimer(enabled) for name in self.NAMES}
+        self.bucket = self.first
+
+    def stage(self, name: str):
+        return self.bucket[name] if self.enabled else _DISABLED_TIMER
+
+    def seconds(self) -> dict | None:
+        if not self.enabled:
+            return None
+        return {
+            "first": {name: timer.seconds for name, timer in self.first.items()},
+            "steady": {name: timer.seconds for name, timer in self.steady.items()},
+        }
+
+
+def _stage(name: str):
+    """Time one drafter stage, or do nothing when stage profiling is off."""
+    stages = _DRAFT_STAGES
+    return _DISABLED_TIMER if stages is None else stages.stage(name)
+
+
 def module_bytes(module: nn.Module) -> int:
     """CUDA bytes held by a module's parameters and buffers."""
     seen: set[tuple] = set()
@@ -583,9 +774,11 @@ def dflash_generate(
     return_stats: bool = False,
     profile_draft_memory: bool = False,
     profile_draft_latency: bool = True,
+    profile_draft_stages: bool = True,
     hidden_states: str = "full",
     prefill_chunk: int | None = None,
 ):
+    global _DRAFT_STAGES
     _validate_sampling(temperature, top_p, top_k)
     num_input_tokens = input_ids.shape[1]
     max_length = num_input_tokens + max_new_tokens
@@ -604,13 +797,21 @@ def dflash_generate(
 
     timing = return_stats and profile_draft_latency
     draft_forward_timer = _GpuTimer(timing)
+    # The first draft call and the rest, timed apart. draft_forward_timer still
+    # spans both, so draft_forward_s keeps the meaning it had in every earlier
+    # record; the two below split it.
+    first_draft_forward_timer = _GpuTimer(timing)
+    steady_draft_forward_timer = _GpuTimer(timing)
     context_feature_timer = _GpuTimer(timing)
     target_forward_timer = _GpuTimer(timing)
+    stages = _DraftStages(timing and profile_draft_stages)
+    _DRAFT_STAGES = stages if stages.enabled else None
     # The target's context feature is what DFlash injects into every draft
     # layer, and materialising it forces output_hidden_states on the target.
     # Both are drafter overhead and neither is charged to the baseline.
     hidden_states_bytes = 0
     context_feature_bytes = 0
+    prefill_context_feature_bytes = 0
     # Two ways to get the target residual streams the drafter is conditioned
     # on: ask for all of them, or hook the handful DFlash reads. They agree
     # exactly, but at 64k input the full tuple is ~19 GB on its own, so the tap
@@ -619,7 +820,40 @@ def dflash_generate(
         raise ValueError(
             f"Unknown hidden_states mode '{hidden_states}'; use 'selective' or 'full'"
         )
-    tracker = PeakTracker(bool(return_stats))
+    # What is live right now, for the phase probe. Kept in a dict rather than
+    # read off the locals so the probe can be defined before the tensors exist.
+    live: dict = {"selected_hidden": None, "context_feature": None}
+    draft_weight_bytes = module_bytes(model) if return_stats else 0
+
+    def _components() -> dict:
+        """Every tracked component's size, all read at the same instant."""
+        return {
+            # Baseline pays this too -- it is the target's own state, not
+            # DFlash's, and must not be charged to the drafter.
+            "target_kv_bytes": _cache_bytes(past_key_values_target),
+            # DFlash-specific from here down.
+            "draft_kv_bytes": _cache_bytes(past_key_values_draft),
+            "selected_hidden_bytes": _tensor_bytes(live["selected_hidden"] or ()),
+            "context_feature_bytes": _tensor_bytes(
+                () if live["context_feature"] is None else (live["context_feature"],)
+            ),
+            "draft_weight_bytes": draft_weight_bytes,
+            "allocated_bytes": _all_device_live(),
+        }
+
+    phases = PhaseMemory(bool(return_stats), _components)
+    tracker = PeakTracker(bool(return_stats), on_interval=phases.interval)
+
+    def phase(label: str, **site) -> int:
+        """Close the interval that just ran and open a named phase.
+
+        Returns the closed interval's peak, which is what the draft-activation
+        probe needs.
+        """
+        peak = tracker.boundary(label, **site)
+        phases.begin(label, **site)
+        return peak
+
     tap = (
         HiddenStateTap(
             target,
@@ -653,7 +887,7 @@ def dflash_generate(
     feature_chunks = []
     for begin in range(0, num_input_tokens, chunk):
         end = min(begin + chunk, num_input_tokens)
-        tracker.boundary("prefill: target forward", chunk=begin // chunk)
+        phase("prefill: target forward", chunk=begin // chunk)
         output, selected, accounted = _target_step(
             target,
             tap,
@@ -665,24 +899,30 @@ def dflash_generate(
             use_cache=True,
             logits_to_keep=1,
         )
+        live["selected_hidden"] = accounted
         if block_size > 1:
             hidden_states_bytes = max(hidden_states_bytes, _tensor_bytes(accounted))
+            # Its own phase because the residual streams and the feature built
+            # from them are live at the same time here, and that coincidence is
+            # what a component-wise maximum over the whole run cannot show.
+            phase("prefill: context-feature build", chunk=begin // chunk)
             with context_feature_timer:
                 feature_chunks.append(torch.cat(selected, dim=-1))
             # The prefill streams are the largest tensors in the run; drop them
             # the moment this chunk's context feature has been built.
             selected = accounted = None
+            live["selected_hidden"] = None
 
     output_ids[:, :num_input_tokens] = input_ids
+    # Opened for every configuration, not just DFlash: without it the last
+    # prefill layer's interval stays open into the first verify, and the peak
+    # of a baseline run gets reported against a prefill label.
+    phase("prefill: first token")
     output_ids[:, num_input_tokens:num_input_tokens + 1] = sample(
         output.logits, temperature, top_p, top_k
     )
-    # Closed for every configuration, not just DFlash: without it the last
-    # prefill layer's interval stays open into the first verify, and the peak
-    # of a baseline run gets reported against a prefill label.
-    tracker.boundary("prefill: first token")
     if block_size > 1:
-        tracker.boundary("prefill: context-feature concat")
+        phase("prefill: context-feature concat")
         with context_feature_timer:
             target_hidden = (
                 feature_chunks[0]
@@ -690,9 +930,12 @@ def dflash_generate(
                 else torch.cat(feature_chunks, dim=1)
             )
         feature_chunks = None
+        live["context_feature"] = target_hidden
+        prefill_context_feature_bytes = _tensor_bytes([target_hidden])
         context_feature_bytes = max(
-            context_feature_bytes, _tensor_bytes([target_hidden])
+            context_feature_bytes, prefill_context_feature_bytes
         )
+    phase("prefill: rollback/crop")
     _crop_to(past_key_values_target, num_input_tokens)
     time_to_first_token = _cuda_time() - prefill_start if return_stats else None
     if len({p.device for p in target.parameters()}) < 2:
@@ -707,6 +950,11 @@ def dflash_generate(
     accepted_lengths = []
     proposed_lengths = []
     draft_activation_bytes = 0
+    draft_calls = 0
+    steady_context_feature_bytes = 0
+    first_draft_cache_bytes = 0
+    first_draft_cache_pre_crop_bytes = 0
+    steady_draft_cache_bytes = 0
     start = num_input_tokens
     stop_tokens = (
         torch.tensor(stop_token_ids, dtype=output_ids.dtype, device=output_ids.device)
@@ -723,14 +971,33 @@ def dflash_generate(
             decode_token=start - num_input_tokens, draft_step=len(acceptance_lengths)
         )
         if verify_size > 1:
+            # The first draft call of a request is the drafter's own prefill: it
+            # projects the whole prompt's context feature and fills the draft KV
+            # cache with S entries. Every later call adds only the tokens the
+            # last verify accepted. Folding the two together is what made the
+            # drafter look cheap at 4k and unexplained at 64k.
+            first_draft = draft_calls == 0
+            draft_calls += 1
             before_draft_bytes = _all_device_live() if profile_draft_memory else 0
-            tracker.boundary("decode: draft forward")
+            phase(
+                "decode: first draft forward"
+                if first_draft
+                else "decode: draft forward"
+            )
+            if stages.enabled:
+                stages.bucket = stages.first if first_draft else stages.steady
             noise_embedding = _raw_input_embeddings(
                 target,
                 block_output_ids,
                 float(_draft_value(model.config, "input_embedding_scale", 1.0)),
             )
-            with draft_forward_timer:
+            with ExitStack() as scope:
+                scope.enter_context(draft_forward_timer)
+                scope.enter_context(
+                    first_draft_forward_timer
+                    if first_draft
+                    else steady_draft_forward_timer
+                )
                 draft_hidden = model(
                     target_hidden=target_hidden,
                     noise_embedding=noise_embedding,
@@ -738,8 +1005,17 @@ def dflash_generate(
                     past_key_values=past_key_values_draft,
                     use_cache=True,
                 )[:, 1 - verify_size :, :]
+            if first_draft:
+                first_draft_cache_pre_crop_bytes = _cache_bytes(past_key_values_draft)
+            draft_peak_bytes = phase("decode: draft rollback/crop")
             _crop_to(past_key_values_draft, start)
-            draft_peak_bytes = tracker.boundary("decode: draft logits")
+            if first_draft:
+                first_draft_cache_bytes = _cache_bytes(past_key_values_draft)
+            else:
+                steady_draft_cache_bytes = max(
+                    steady_draft_cache_bytes, _cache_bytes(past_key_values_draft)
+                )
+            phase("decode: draft logits")
             if profile_draft_memory:
                 # Subtract whatever the call left behind — the first draft call
                 # populates the whole draft KV cache, which is persistent, not
@@ -769,7 +1045,7 @@ def dflash_generate(
                     draft_indices = None
                 else:
                     block_output_ids[:, 1:] = torch.argmax(draft_logits, dim=-1)
-        tracker.boundary("decode: target verify")
+        phase("decode: target verify")
         with target_forward_timer:
             output, selected, accounted = _target_step(
                 target,
@@ -781,6 +1057,7 @@ def dflash_generate(
                 past_key_values=past_key_values_target,
                 use_cache=True,
             )
+        live["selected_hidden"] = accounted
 
         if temperature > 0:
             target_probs = _sampling_probs(output.logits, temperature, top_p, top_k)
@@ -809,6 +1086,7 @@ def dflash_generate(
                 produced = stop_indices[0].item() + 1
                 stopped = True
         start += produced
+        phase("decode: verify rollback/crop")
         _crop_to(past_key_values_target, start)
         acceptance_lengths.append(produced)
         accepted_lengths.append(min(acceptance_length, produced))
@@ -816,14 +1094,25 @@ def dflash_generate(
 
         if verify_size > 1:
             hidden_states_bytes = max(hidden_states_bytes, _tensor_bytes(accounted))
-            tracker.boundary("decode: context-feature concat")
+            phase("decode: context-feature build")
             with context_feature_timer:
+                # Reassigning here is also what frees the prompt-length feature
+                # built during prefill -- it stays live across the first draft
+                # call, the first verify and this concat, which is why the first
+                # decode step's phases carry a context-feature term the size of
+                # the prompt and later ones carry only the accepted tokens.
                 target_hidden = torch.cat(selected, dim=-1)[:, :produced, :]
+            live["context_feature"] = target_hidden
+            steady_context_feature_bytes = max(
+                steady_context_feature_bytes, _tensor_bytes([target_hidden])
+            )
             context_feature_bytes = max(
-                context_feature_bytes, _tensor_bytes([target_hidden])
+                context_feature_bytes, steady_context_feature_bytes
             )
 
+    _DRAFT_STAGES = None
     tracker.finish()
+    phases.finish()
     for handle in watch_handles:
         handle.remove()
 
@@ -836,6 +1125,38 @@ def dflash_generate(
     end_time = _cuda_time()
     total_decode_time = end_time - decode_start
     num_proposed = sum(proposed_lengths)
+    phase_summary = phases.summary()
+
+    def _phase_delta(name: str, field: str = "peak") -> int:
+        """The temporary part of a phase's peak: what it borrowed, not kept.
+
+        Interval peak minus whatever was live on both sides of the phase. The
+        first draft call leaves an S-entry draft KV cache behind, so netting out
+        the exit reading is what keeps this a transient figure rather than a
+        second copy of draft_cache_bytes. All three readings come from the one
+        phase, which is the property peak-minus-resident never had.
+        """
+        entry = phase_summary.get(name)
+        if not entry or entry.get(field) is None:
+            return 0
+        record = entry[field]
+        resident = max(
+            record["allocated_before_bytes"], record["allocated_after_bytes"]
+        )
+        return max(record["interval_peak_bytes"] - resident, 0)
+
+    first_draft_phase = phase_summary.get("decode: first draft forward", {}).get("first")
+    steady_draft_phase = phase_summary.get("decode: draft forward", {}).get("peak")
+    steady_calls = max(draft_calls - 1, 0)
+    steady_forward_s = steady_draft_forward_timer.seconds
+    stage_seconds = stages.seconds()
+
+    def _stage_mean(bucket: str, name: str, calls: int):
+        if stage_seconds is None or not calls:
+            return None
+        value = stage_seconds[bucket][name]
+        return None if value is None else value / calls
+
     return SimpleNamespace(
         output_ids=output_ids,
         num_input_tokens=num_input_tokens,
@@ -870,6 +1191,67 @@ def dflash_generate(
         draft_forward_s=draft_forward_timer.seconds,
         context_feature_s=context_feature_timer.seconds,
         target_forward_s=target_forward_timer.seconds,
+        # ------------------------------------------------------------------
+        # Phase-local memory: per phase, what was live going in, going out, the
+        # largest interval inside it, and the component split read at that
+        # interval's close. See PhaseMemory.
+        # ------------------------------------------------------------------
+        phase_memory=phase_summary,
+        # ------------------------------------------------------------------
+        # The drafter's own prefill, separated from its steady state.
+        # ------------------------------------------------------------------
+        first_draft_forward_s=first_draft_forward_timer.seconds,
+        first_draft_peak_memory_bytes=(
+            first_draft_phase["interval_peak_bytes"] if first_draft_phase else 0
+        ),
+        first_draft_allocated_before_bytes=(
+            first_draft_phase["allocated_before_bytes"] if first_draft_phase else 0
+        ),
+        # What the first call left behind in the draft cache once its noise
+        # block was cropped off: the drafter's resident context, S entries deep.
+        first_draft_cache_bytes=first_draft_cache_bytes,
+        first_draft_cache_pre_crop_bytes=first_draft_cache_pre_crop_bytes,
+        first_draft_fraction_of_decode=(
+            None
+            if first_draft_forward_timer.seconds is None or total_decode_time <= 0
+            else first_draft_forward_timer.seconds / total_decode_time
+        ),
+        first_draft_stage_s=None if stage_seconds is None else stage_seconds["first"],
+        steady_draft_calls=steady_calls,
+        mean_steady_draft_forward_s=(
+            None
+            if steady_forward_s is None or not steady_calls
+            else steady_forward_s / steady_calls
+        ),
+        mean_steady_attention_s=_stage_mean("steady", "attention", steady_calls),
+        mean_steady_cache_update_s=_stage_mean("steady", "cache_update", steady_calls),
+        mean_steady_context_kv_projection_s=_stage_mean(
+            "steady", "context_kv_projection", steady_calls
+        ),
+        mean_steady_context_projection_s=_stage_mean(
+            "steady", "context_projection", steady_calls
+        ),
+        mean_steady_output_head_s=_stage_mean("steady", "output_head", steady_calls),
+        steady_draft_cache_bytes=steady_draft_cache_bytes,
+        steady_draft_peak_memory_bytes=(
+            steady_draft_phase["interval_peak_bytes"] if steady_draft_phase else 0
+        ),
+        # ------------------------------------------------------------------
+        # What is DFlash's and what is the target's. target_kv and the target's
+        # prefill activation are paid by the baseline too and are not drafter
+        # overhead; everything under dflash_* is.
+        # ------------------------------------------------------------------
+        draft_weight_bytes=draft_weight_bytes,
+        prefill_context_feature_bytes=prefill_context_feature_bytes,
+        steady_context_feature_bytes=steady_context_feature_bytes,
+        dflash_persistent_resident_bytes=(
+            draft_weight_bytes
+            + steady_draft_cache_bytes
+            + steady_context_feature_bytes
+        ),
+        first_draft_transient_bytes=_phase_delta("decode: first draft forward", "first"),
+        steady_draft_transient_bytes=_phase_delta("decode: draft forward"),
+        target_prefill_transient_bytes=_phase_delta("prefill: target forward"),
     )
 
 
@@ -930,9 +1312,15 @@ class Qwen3DFlashAttention(nn.Module):
         q = self.q_proj(hidden_states)
         q = q.view(bsz, q_len, -1, self.head_dim)
         q = self.q_norm(q).transpose(1, 2)
-        k_ctx = self.k_proj(target_hidden)
+        # The two context projections are timed and the two noise ones are
+        # not: the context term is the one whose cost is the length of the
+        # injected feature, which is the whole prompt on the first draft call.
+        # The original order is kept so the kernels are issued as before.
+        with _stage("context_kv_projection"):
+            k_ctx = self.k_proj(target_hidden)
         k_noise = self.k_proj(hidden_states)
-        v_ctx = self.v_proj(target_hidden)
+        with _stage("context_kv_projection"):
+            v_ctx = self.v_proj(target_hidden)
         v_noise = self.v_proj(hidden_states)
         k = torch.cat([k_ctx, k_noise], dim=1).view(bsz, ctx_len + q_len, -1, self.head_dim)
         v = torch.cat([v_ctx, v_noise], dim=1).view(bsz, ctx_len + q_len, -1, self.head_dim)
@@ -942,7 +1330,8 @@ class Qwen3DFlashAttention(nn.Module):
         q, k = apply_rotary_pos_emb(q, k, cos, sin)
         if past_key_values is not None:
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            k, v = past_key_values.update(k, v, self.layer_idx, cache_kwargs)
+            with _stage("cache_update"):
+                k, v = past_key_values.update(k, v, self.layer_idx, cache_kwargs)
         if (
             attention_mask is None
             and (self.is_causal or self.sliding_window is not None)
@@ -953,17 +1342,18 @@ class Qwen3DFlashAttention(nn.Module):
                 is_causal=self.is_causal,
                 sliding_window=self.sliding_window,
             )
-        attn_output, attn_weights = ALL_ATTENTION_FUNCTIONS["sdpa"](
-            self,
-            q,
-            k,
-            v,
-            attention_mask,
-            dropout=0.0 if not self.training else self.attention_dropout,
-            scaling=self.scaling,
-            sliding_window=self.sliding_window,
-            **kwargs,
-        )
+        with _stage("attention"):
+            attn_output, attn_weights = ALL_ATTENTION_FUNCTIONS["sdpa"](
+                self,
+                q,
+                k,
+                v,
+                attention_mask,
+                dropout=0.0 if not self.training else self.attention_dropout,
+                scaling=self.scaling,
+                sliding_window=self.sliding_window,
+                **kwargs,
+            )
         attn_output = attn_output.reshape(bsz, q_len, -1)
         attn_output = self.o_proj(attn_output)
         return attn_output, attn_weights
@@ -1130,7 +1520,8 @@ class DFlashDraftModel(Qwen3PreTrainedModel):
         **kwargs,
     ) -> torch.Tensor:
         hidden_states = noise_embedding
-        target_hidden = self.hidden_norm(self.fc(target_hidden))
+        with _stage("context_projection"):
+            target_hidden = self.hidden_norm(self.fc(target_hidden))
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
         for layer in self.layers:
             hidden_states = layer(
@@ -1146,11 +1537,12 @@ class DFlashDraftModel(Qwen3PreTrainedModel):
         return self.norm(hidden_states)
 
     def compute_logits(self, hidden, output_head):
-        logits = output_head(hidden)
-        logits = logits * float(_draft_value(self.config, "output_multiplier", 1.0))
-        softcap = _draft_value(self.config, "final_logit_softcapping")
-        if softcap is not None and float(softcap) > 0:
-            logits = torch.tanh(logits / float(softcap)) * float(softcap)
+        with _stage("output_head"):
+            logits = output_head(hidden)
+            logits = logits * float(_draft_value(self.config, "output_multiplier", 1.0))
+            softcap = _draft_value(self.config, "final_logit_softcapping")
+            if softcap is not None and float(softcap) > 0:
+                logits = torch.tanh(logits / float(softcap)) * float(softcap)
         return logits
 
     def spec_generate(

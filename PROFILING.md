@@ -3,6 +3,14 @@
 How to measure DFlash acceptance, latency and memory as a function of input
 context length, and what the numbers mean.
 
+> **Two memory figures in this document are superseded.** `transient_gb` is not
+> the run's activation — it subtracts per-component maxima taken at different
+> instants — and `max_target_cache_gb` under-reports a hybrid target's KV cache
+> because it reads it after decode has released the prefill buffers (2.07 GB
+> recorded against 26.05 GB live at the peak, Qwen3.5-9B at 64k). See
+> [PROFILING2.md](PROFILING2.md), which measures both per phase and closes the
+> arithmetic on the old numbers. Everything else here still holds.
+
 ## Code map
 
 | File | Role |

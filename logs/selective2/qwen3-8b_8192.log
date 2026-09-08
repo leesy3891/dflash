@@ -1,0 +1,132 @@
+Loading weights:   0%|          | 0/399 [00:00<?, ?it/s]Loading weights: 100%|██████████| 399/399 [00:00<00:00, 5550.91it/s]
+Loading weights:   0%|          | 0/58 [00:00<?, ?it/s]Loading weights: 100%|██████████| 58/58 [00:00<00:00, 8604.31it/s]
+[context] skipped 21 documents shorter than 8192 tokens
+
+LongBench feasibility at 8192 tokens
+task                   split    docs  natural  composed  skipped
+gov_report             e         300        1         0        3
+multi_news             e         294        1         0        4
+qasper                 e         224        0         0        3
+multifieldqa_en        e         150        2         0        2
+lcc                    e         300        1         0        0
+repobench-p            e         300        6         0        0
+hotpotqa               e         300        4         0        0
+2wikimqa               e         300        4         0        1
+triviaqa               e         300        2         0        1
+samsum                 e         300        2         0        5
+trec                   e         300        4         0        1
+passage_count          e         300        2         0        0
+passage_retrieval_en   e         300        3         0        1
+ctx=8192:   0%|          | 0/32 [00:00<?, ?it/s]ctx=8192:   3%|▎         | 1/32 [00:03<01:40,  3.23s/it]ctx=8192:   6%|▋         | 2/32 [00:26<07:23, 14.79s/it]ctx=8192:   9%|▉         | 3/32 [00:29<04:38,  9.59s/it]ctx=8192:  12%|█▎        | 4/32 [00:44<05:23, 11.57s/it]ctx=8192:  16%|█▌        | 5/32 [01:02<06:19, 14.06s/it]ctx=8192:  19%|█▉        | 6/32 [01:30<08:12, 18.94s/it]ctx=8192:  22%|██▏       | 7/32 [01:59<09:07, 21.91s/it]ctx=8192:  25%|██▌       | 8/32 [02:25<09:17, 23.21s/it]ctx=8192:  28%|██▊       | 9/32 [02:28<06:30, 16.96s/it]ctx=8192:  31%|███▏      | 10/32 [02:31<04:41, 12.79s/it]ctx=8192:  34%|███▍      | 11/32 [03:08<07:06, 20.29s/it]ctx=8192:  38%|███▊      | 12/32 [03:12<05:01, 15.08s/it]ctx=8192:  41%|████      | 13/32 [03:41<06:06, 19.27s/it]ctx=8192:  44%|████▍     | 14/32 [03:58<05:36, 18.67s/it]ctx=8192:  47%|████▋     | 15/32 [04:04<04:14, 14.99s/it]ctx=8192:  50%|█████     | 16/32 [04:09<03:08, 11.76s/it]ctx=8192:  53%|█████▎    | 17/32 [04:14<02:27,  9.83s/it]ctx=8192:  56%|█████▋    | 18/32 [04:17<01:49,  7.85s/it]ctx=8192:  59%|█████▉    | 19/32 [04:20<01:24,  6.47s/it]ctx=8192:  62%|██████▎   | 20/32 [04:50<02:40, 13.39s/it]ctx=8192:  66%|██████▌   | 21/32 [04:53<01:53, 10.30s/it]ctx=8192:  69%|██████▉   | 22/32 [05:15<02:19, 13.94s/it]ctx=8192:  72%|███████▏  | 23/32 [05:26<01:56, 12.99s/it]ctx=8192:  75%|███████▌  | 24/32 [05:59<02:32, 19.07s/it]ctx=8192:  78%|███████▊  | 25/32 [06:03<01:40, 14.31s/it]ctx=8192:  81%|████████▏ | 26/32 [06:12<01:16, 12.68s/it]ctx=8192:  84%|████████▍ | 27/32 [06:15<00:49,  9.81s/it]ctx=8192:  88%|████████▊ | 28/32 [06:19<00:32,  8.10s/it]ctx=8192:  91%|█████████ | 29/32 [06:22<00:19,  6.63s/it]ctx=8192:  94%|█████████▍| 30/32 [06:25<00:11,  5.56s/it]ctx=8192:  97%|█████████▋| 31/32 [07:00<00:14, 14.51s/it]ctx=8192: 100%|██████████| 32/32 [07:04<00:00, 11.21s/it]ctx=8192: 100%|██████████| 32/32 [07:04<00:00, 13.26s/it]
+
+================================================================
+DFlash (block_size=16)
+  Input tokens (total / mean)             262144 / 8192.0
+  Output tokens (total / mean)            5857 / 183.0
+  Total latency                           173.8s
+  TTFT mean / p50 / p95                   1.445s / 1.447s / 1.449s
+  Per-decode-token latency                21.78ms
+  Decode throughput                       45.91 tok/s
+  Peak memory (allocated / reserved)      19.47 / 19.62 GB
+  Peak hit at                             target layer 35 @ sample 1
+  -- memory budget at peak
+    target weights                          15.26 GB    78.4%
+    target KV cache (max)                    1.20 GB     6.1%
+    draft weights                            1.95 GB    10.0%
+    draft KV cache (max)                     0.17 GB     0.9%
+    target hidden states (max)               0.31 GB     1.6%
+    injected context feature (max)           0.31 GB     1.6%
+    draft activation (max)                   0.16 GB     0.8%
+    resident subtotal                       19.36 GB    99.4%
+    transient (activation, unaccounted)      0.11 GB     0.6%
+    = peak allocated                        19.47 GB
+  -- phase-local memory (GB; in/peak/out are one occurrence)
+    phase                                   in    peak     out  borrowed
+    prefill: target forward              17.22   19.47   18.66      0.82   <- peak
+    prefill: context-feature build       18.66   18.97   18.66      0.31
+    prefill: first token                 18.66   18.66   18.66      0.00
+    prefill: context-feature concat      18.66   18.66   18.66      0.00
+    prefill: rollback/crop               18.66   18.66   18.66      0.00
+    decode: first draft forward          18.66   18.97   18.81      0.16
+    decode: draft rollback/crop          18.81   18.81   18.81      0.00
+    decode: draft logits                 18.81   18.82   18.82      0.00
+    decode: target verify                18.82   18.95   18.82      0.12
+    decode: verify rollback/crop         18.82   18.82   18.82      0.00
+    decode: context-feature build        18.82   18.82   18.51      0.00
+    decode: draft forward                18.59   18.61   18.59      0.02
+    at the peak phase (prefill: target forward)
+      target_kv                              1.12 GB
+      draft_kv                               0.00 GB
+      selected_hidden                        0.31 GB
+      context_feature                        0.00 GB
+      draft_weight                           1.95 GB
+      target_weight                         15.26 GB
+      unattributed                           0.82 GB
+  -- acceptance
+  Acceptance rate (accepted/proposed)     0.1413
+  Mean acceptance length                  3.09
+  Acceptance histogram                    ['0.0%', '32.9%', '24.4%', '15.2%', '8.4%', '5.4%', '3.5%', '2.4%', '2.0%', '1.7%', '1.2%', '0.8%', '0.5%', '0.5%', '0.2%', '0.2%', '0.8%']
+  -- drafter activity
+  Gamma (tokens per proposal)             15
+  Full-gamma proposals                    1859
+  Draft calls / verify steps              1888 / 1888
+  Total drafter overhead                  2.91 GB
+  -- first draft call (the drafter's own prefill)
+  Latency (mean per request)              29.4ms (8.7% of decode)
+  Peak / borrowed                         18.97 / 0.16 GB
+  Draft KV left behind (pre-crop)         0.16 (0.16) GB
+    stages                                context_projection 12.8ms, context_kv_projection 6.9ms, cache_update 1.0ms, attention 0.5ms, output_head 1.7ms
+  -- steady-state draft calls
+  Calls per request (mean)                58.0
+  Forward (mean per call)                 6.07ms
+    attention                             0.47ms
+    KV append                             0.75ms
+    context K/V projection                0.25ms
+    context projection                    0.30ms
+    output head                           1.71ms
+  Draft KV (max)                          0.17 GB
+  -- drafter latency
+  Draft forward                           12.3s
+  Context-feature build                   0.1s
+  Drafter total (share of decode)         12.4s (9.7%)
+  Target verify (share of decode)         110.5s (86.6%)
+
+Baseline (block_size=1, drafter unused)
+  Input tokens (total / mean)             262144 / 8192.0
+  Output tokens (total / mean)            6090 / 190.3
+  Total latency                           249.8s
+  TTFT mean / p50 / p95                   1.445s / 1.446s / 1.449s
+  Per-decode-token latency                33.41ms
+  Decode throughput                       29.93 tok/s
+  Peak memory (allocated / reserved)      19.16 / 19.62 GB
+  Peak hit at                             target layer 35 @ sample 0
+  -- memory budget at peak
+    target weights                          15.26 GB    79.6%
+    target KV cache (max)                    1.20 GB     6.2%
+    draft weights (loaded, unused)           1.95 GB    10.2%
+    resident subtotal                       18.40 GB    96.1%
+    transient (activation, unaccounted)      0.75 GB     3.9%
+    = peak allocated                        19.16 GB
+  -- phase-local memory (GB; in/peak/out are one occurrence)
+    phase                                   in    peak     out  borrowed
+    prefill: target forward              17.22   19.16   18.34      0.82   <- peak
+    prefill: first token                 18.34   18.34   18.34      0.00
+    prefill: rollback/crop               18.34   18.34   18.34      0.00
+    decode: target verify                18.41   18.43   18.41      0.02
+    decode: verify rollback/crop         18.41   18.41   18.41      0.00
+    at the peak phase (prefill: target forward)
+      target_kv                              1.12 GB
+      draft_kv                               0.00 GB
+      selected_hidden                        0.00 GB
+      context_feature                        0.00 GB
+      draft_weight                           1.95 GB
+      target_weight                         15.26 GB
+      unattributed                           0.82 GB
+  Decode steps (mean)                     189.3
+
+DFlash vs baseline
+  Decoding speedup                        1.53x
+  Peak allocated delta                    0.31 GB
+  Drafter memory overhead                 2.91 GB
+================================================================
+Record written to record_selective/qwen3-8b_8192_20260909-045628.json
