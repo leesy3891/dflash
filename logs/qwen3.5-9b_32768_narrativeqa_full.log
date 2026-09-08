@@ -1,0 +1,64 @@
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 1131.46it/s]
+Loading weights:   0%|          | 0/427 [00:00<?, ?it/s]Loading weights:   0%|          | 1/427 [00:00<02:21,  3.01it/s]Loading weights:   5%|▌         | 23/427 [00:00<00:06, 65.34it/s]Loading weights:   8%|▊         | 36/427 [00:00<00:04, 82.79it/s]Loading weights:  11%|█         | 48/427 [00:00<00:05, 75.27it/s]Loading weights:  15%|█▌        | 66/427 [00:00<00:03, 99.63it/s]Loading weights:  19%|█▊        | 79/427 [00:00<00:03, 98.84it/s]Loading weights:  22%|██▏       | 93/427 [00:01<00:03, 108.66it/s]Loading weights:  25%|██▍       | 106/427 [00:01<00:03, 87.91it/s]Loading weights:  28%|██▊       | 120/427 [00:01<00:03, 98.43it/s]Loading weights:  31%|███       | 133/427 [00:01<00:02, 105.22it/s]Loading weights:  34%|███▍      | 145/427 [00:01<00:02, 107.64it/s]Loading weights:  37%|███▋      | 157/427 [00:01<00:02, 90.80it/s] Loading weights:  40%|████      | 172/427 [00:01<00:02, 101.90it/s]Loading weights:  43%|████▎     | 185/427 [00:02<00:02, 108.39it/s]Loading weights:  46%|████▌     | 197/427 [00:02<00:02, 102.71it/s]Loading weights:  49%|████▊     | 208/427 [00:02<00:02, 85.62it/s] Loading weights:  53%|█████▎    | 225/427 [00:02<00:01, 102.83it/s]Loading weights:  56%|█████▌    | 237/427 [00:02<00:01, 106.11it/s]Loading weights:  58%|█████▊    | 249/427 [00:02<00:01, 100.82it/s]Loading weights:  61%|██████    | 260/427 [00:02<00:01, 85.50it/s] Loading weights:  65%|██████▌   | 278/427 [00:03<00:01, 92.68it/s]Loading weights:  69%|██████▊   | 293/427 [00:03<00:01, 97.83it/s]Loading weights:  72%|███████▏  | 307/427 [00:03<00:01, 106.43it/s]Loading weights:  75%|███████▍  | 319/427 [00:03<00:01, 97.02it/s] Loading weights:  78%|███████▊  | 332/427 [00:03<00:00, 103.30it/s]Loading weights:  81%|████████  | 345/427 [00:03<00:00, 108.83it/s]Loading weights:  84%|████████▍ | 358/427 [00:03<00:00, 113.10it/s]Loading weights:  87%|████████▋ | 370/427 [00:03<00:00, 92.55it/s] Loading weights:  90%|█████████ | 385/427 [00:04<00:00, 93.17it/s]Loading weights:  93%|█████████▎| 399/427 [00:04<00:00, 102.76it/s]Loading weights:  96%|█████████▋| 412/427 [00:04<00:00, 108.26it/s]Loading weights:  99%|█████████▉| 424/427 [00:04<00:00, 95.43it/s] Loading weights: 100%|██████████| 427/427 [00:04<00:00, 95.44it/s]
+Loading weights:   0%|          | 0/69 [00:00<?, ?it/s]Loading weights: 100%|██████████| 69/69 [00:00<00:00, 4309.92it/s]
+[device-map] target sharded: {'model.embed_tokens': 0, 'model.layers.0': 0, 'model.layers.1': 0, 'model.layers.2': 0, 'model.layers.3': 0, 'model.layers.4': 0, 'model.layers.5': 0, 'model.layers.6': 0, 'model.layers.7': 0, 'model.layers.8': 0, 'model.layers.9': 0, 'model.layers.10': 0, 'model.layers.11': 0, 'model.layers.12': 1, 'model.layers.13': 1, 'model.layers.14': 1, 'model.layers.15': 1, 'model.layers.16': 1, 'model.layers.17': 1, 'model.layers.18': 1, 'model.layers.19': 1, 'model.layers.20': 1, 'model.layers.21': 1, 'model.layers.22': 1, 'model.layers.23': 1, 'model.layers.24': 1, 'model.layers.25': 1, 'model.layers.26': 1, 'model.layers.27': 1, 'model.layers.28': 1, 'model.layers.29': 1, 'model.layers.30': 1, 'model.layers.31': 1, 'model.norm': 1, 'model.rotary_emb': 1, 'lm_head': 1}
+[context] skipped 55 documents shorter than 32768 tokens
+
+LongBench feasibility at 32768 tokens
+task                   split    docs  natural  composed  skipped
+narrativeqa            full      200       32         0       55
+ctx=32768:   0%|          | 0/32 [00:00<?, ?it/s]ctx=32768:   3%|▎         | 1/32 [00:21<11:13, 21.72s/it]ctx=32768:   6%|▋         | 2/32 [00:44<11:03, 22.10s/it]ctx=32768:   9%|▉         | 3/32 [01:06<10:38, 22.03s/it]ctx=32768:  12%|█▎        | 4/32 [01:28<10:18, 22.08s/it]ctx=32768:  16%|█▌        | 5/32 [01:50<09:54, 22.03s/it]ctx=32768:  19%|█▉        | 6/32 [02:12<09:33, 22.05s/it]ctx=32768:  22%|██▏       | 7/32 [02:34<09:15, 22.22s/it]ctx=32768:  25%|██▌       | 8/32 [03:03<09:42, 24.25s/it]ctx=32768:  28%|██▊       | 9/32 [03:26<09:07, 23.82s/it]ctx=32768:  31%|███▏      | 10/32 [03:48<08:31, 23.27s/it]ctx=32768:  34%|███▍      | 11/32 [04:10<07:59, 22.85s/it]ctx=32768:  38%|███▊      | 12/32 [04:33<07:38, 22.93s/it]ctx=32768:  41%|████      | 13/32 [04:57<07:21, 23.22s/it]ctx=32768:  44%|████▍     | 14/32 [05:19<06:50, 22.81s/it]ctx=32768:  47%|████▋     | 15/32 [05:41<06:27, 22.82s/it]ctx=32768:  50%|█████     | 16/32 [06:04<06:04, 22.80s/it]ctx=32768:  53%|█████▎    | 17/32 [06:26<05:38, 22.54s/it]ctx=32768:  56%|█████▋    | 18/32 [06:48<05:13, 22.38s/it]ctx=32768:  59%|█████▉    | 19/32 [07:10<04:49, 22.30s/it]ctx=32768:  62%|██████▎   | 20/32 [07:32<04:25, 22.15s/it]ctx=32768:  66%|██████▌   | 21/32 [07:54<04:03, 22.15s/it]ctx=32768:  69%|██████▉   | 22/32 [08:16<03:41, 22.18s/it]ctx=32768:  72%|███████▏  | 23/32 [08:41<03:25, 22.84s/it]ctx=32768:  75%|███████▌  | 24/32 [09:04<03:04, 23.09s/it]ctx=32768:  78%|███████▊  | 25/32 [09:26<02:39, 22.77s/it]ctx=32768:  81%|████████▏ | 26/32 [09:48<02:15, 22.53s/it]ctx=32768:  84%|████████▍ | 27/32 [10:11<01:52, 22.54s/it]ctx=32768:  88%|████████▊ | 28/32 [10:33<01:29, 22.32s/it]ctx=32768:  91%|█████████ | 29/32 [10:55<01:06, 22.17s/it]ctx=32768:  94%|█████████▍| 30/32 [11:28<00:50, 25.47s/it]ctx=32768:  97%|█████████▋| 31/32 [11:50<00:24, 24.34s/it]ctx=32768: 100%|██████████| 32/32 [12:12<00:00, 23.86s/it]ctx=32768: 100%|██████████| 32/32 [12:12<00:00, 22.90s/it]
+
+================================================================
+DFlash (block_size=16)
+  Input tokens (total / mean)             1048576 / 32768.0
+  Output tokens (total / mean)            1365 / 42.7
+  Total latency                           381.1s
+  TTFT mean / p50 / p95                   10.722s / 10.720s / 10.747s
+  Per-decode-token latency                27.78ms
+  Decode throughput                       35.99 tok/s
+  Peak memory (allocated / reserved)      49.91 / 55.55 GB
+  Peak hit at                             target layer 31 (sample 1)
+    peak split over devices               24.29 + 25.62 GB
+    sum of per-device maxima              54.57 GB (over-counts by 4.66)
+  Target KV cache (max)                   1.07 GB
+  -- acceptance
+  Acceptance rate (accepted/proposed)     0.3768
+  Mean acceptance length                  6.63
+  Acceptance histogram                    ['0.0%', '16.4%', '21.4%', '11.9%', '7.0%', '5.0%', '2.5%', '2.5%', '1.5%', '1.5%', '3.0%', '0.0%', '1.0%', '0.5%', '1.0%', '2.5%', '22.4%']
+  -- drafter activity
+  Gamma (tokens per proposal)             15
+  Full-gamma proposals                    200
+  Draft calls / verify steps              201 / 201
+  -- drafter memory overhead
+  Draft weights                           2.41 GB
+  Draft KV cache (max)                    0.75 GB
+  Target hidden states (max)              8.25 GB
+  Injected context feature (max)          2.00 GB
+  Total drafter overhead                  13.41 GB
+  -- drafter latency
+  Draft forward                           6.2s
+  Context-feature build                   0.2s
+  Drafter total (share of decode)         6.4s (17.0%)
+  Target verify (share of decode)         30.9s (81.5%)
+
+Baseline (block_size=1, drafter unused)
+  Input tokens (total / mean)             1048576 / 32768.0
+  Output tokens (total / mean)            323 / 10.1
+  Total latency                           349.4s
+  TTFT mean / p50 / p95                   10.461s / 10.465s / 10.483s
+  Per-decode-token latency                45.25ms
+  Decode throughput                       22.10 tok/s
+  Peak memory (allocated / reserved)      38.80 / 55.55 GB
+  Peak hit at                             target layer 30 (sample 0)
+    peak split over devices               14.29 + 24.51 GB
+    sum of per-device maxima              45.20 GB (over-counts by 6.40)
+  Target KV cache (max)                   1.05 GB
+  Decode steps (mean)                     9.1
+
+DFlash vs baseline
+  Decoding speedup                        1.63x
+  Peak allocated delta                    11.11 GB
+  Drafter memory overhead                 13.41 GB
+================================================================
+Record written to record/narrativeqa/qwen3.5-9b_32768_20260908-074826.json

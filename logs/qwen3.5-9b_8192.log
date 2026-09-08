@@ -1,0 +1,53 @@
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 1027.64it/s]
+Loading weights:   0%|          | 0/427 [00:00<?, ?it/s]Loading weights: 100%|██████████| 427/427 [00:00<00:00, 5051.27it/s]
+Loading weights:   0%|          | 0/69 [00:00<?, ?it/s]Loading weights: 100%|██████████| 69/69 [00:00<00:00, 5656.79it/s]
+[context] skipped 21 documents shorter than 8192 tokens
+ctx=8192:   0%|          | 0/32 [00:00<?, ?it/s]ctx=8192:   3%|▎         | 1/32 [00:04<02:32,  4.93s/it]ctx=8192:   6%|▋         | 2/32 [00:09<02:26,  4.90s/it]ctx=8192:   9%|▉         | 3/32 [00:14<02:21,  4.89s/it]ctx=8192:  12%|█▎        | 4/32 [00:19<02:15,  4.84s/it]ctx=8192:  16%|█▌        | 5/32 [00:24<02:10,  4.82s/it]ctx=8192:  19%|█▉        | 6/32 [00:55<06:02, 13.95s/it]ctx=8192:  22%|██▏       | 7/32 [01:33<09:01, 21.67s/it]ctx=8192:  25%|██▌       | 8/32 [02:00<09:21, 23.38s/it]ctx=8192:  28%|██▊       | 9/32 [02:05<06:44, 17.60s/it]ctx=8192:  31%|███▏      | 10/32 [02:10<05:00, 13.67s/it]ctx=8192:  34%|███▍      | 11/32 [02:56<08:13, 23.50s/it]ctx=8192:  38%|███▊      | 12/32 [03:00<05:56, 17.83s/it]ctx=8192:  41%|████      | 13/32 [03:34<07:10, 22.65s/it]ctx=8192:  44%|████▍     | 14/32 [03:39<05:10, 17.26s/it]ctx=8192:  47%|████▋     | 15/32 [03:47<04:07, 14.58s/it]ctx=8192:  50%|█████     | 16/32 [03:54<03:13, 12.08s/it]ctx=8192:  53%|█████▎    | 17/32 [04:01<02:40, 10.68s/it]ctx=8192:  56%|█████▋    | 18/32 [04:06<02:04,  8.93s/it]ctx=8192:  59%|█████▉    | 19/32 [04:11<01:40,  7.74s/it]ctx=8192:  62%|██████▎   | 20/32 [04:44<03:04, 15.36s/it]ctx=8192:  66%|██████▌   | 21/32 [04:56<02:38, 14.36s/it]ctx=8192:  69%|██████▉   | 22/32 [05:27<03:13, 19.40s/it]ctx=8192:  72%|███████▏  | 23/32 [05:32<02:15, 15.01s/it]ctx=8192:  75%|███████▌  | 24/32 [06:07<02:47, 20.90s/it]ctx=8192:  78%|███████▊  | 25/32 [06:12<01:52, 16.11s/it]ctx=8192:  81%|████████▏ | 26/32 [06:16<01:16, 12.73s/it]ctx=8192:  84%|████████▍ | 27/32 [06:21<00:51, 10.37s/it]ctx=8192:  88%|████████▊ | 28/32 [06:28<00:36,  9.17s/it]ctx=8192:  91%|█████████ | 29/32 [06:41<00:31, 10.42s/it]ctx=8192:  94%|█████████▍| 30/32 [06:46<00:17,  8.74s/it]ctx=8192:  97%|█████████▋| 31/32 [07:19<00:16, 16.11s/it]ctx=8192: 100%|██████████| 32/32 [07:26<00:00, 13.42s/it]ctx=8192: 100%|██████████| 32/32 [07:26<00:00, 13.96s/it]
+
+================================================================
+DFlash (block_size=16)
+  Input tokens (total / mean)             262143 / 8192.0
+  Output tokens (total / mean)            5916 / 184.9
+  Total latency                           193.1s
+  TTFT mean / p50 / p95                   2.231s / 2.231s / 2.237s
+  Per-decode-token latency                20.57ms
+  Decode throughput                       48.61 tok/s
+  Peak memory (allocated / reserved)      25.87 / 26.54 GB
+  Target KV cache (max)                   0.32 GB
+  -- acceptance
+  Acceptance rate (accepted/proposed)     0.4075
+  Mean acceptance length                  7.07
+  Acceptance histogram                    ['0.0%', '9.9%', '15.3%', '14.9%', '8.7%', '6.9%', '4.3%', '3.1%', '3.7%', '1.7%', '2.3%', '2.3%', '2.4%', '2.3%', '1.3%', '1.1%', '20.0%']
+  -- drafter activity
+  Gamma (tokens per proposal)             15
+  Full-gamma proposals                    820
+  Draft calls / verify steps              832 / 832
+  -- drafter memory overhead
+  Draft weights                           2.41 GB
+  Draft KV cache (max)                    0.19 GB
+  Target hidden states (max)              2.06 GB
+  Injected context feature (max)          0.50 GB
+  Total drafter overhead                  5.16 GB
+  -- drafter latency
+  Draft forward                           7.7s
+  Context-feature build                   0.1s
+  Drafter total (share of decode)         7.8s (6.4%)
+  Target verify (share of decode)         111.2s (91.4%)
+
+Baseline (block_size=1, drafter unused)
+  Input tokens (total / mean)             262143 / 8192.0
+  Output tokens (total / mean)            4777 / 149.3
+  Total latency                           252.8s
+  TTFT mean / p50 / p95                   2.229s / 2.228s / 2.234s
+  Per-decode-token latency                38.00ms
+  Decode throughput                       26.32 tok/s
+  Peak memory (allocated / reserved)      24.05 / 26.54 GB
+  Target KV cache (max)                   0.31 GB
+  Decode steps (mean)                     148.3
+
+DFlash vs baseline
+  Decoding speedup                        1.85x
+  Peak allocated delta                    1.81 GB
+  Drafter memory overhead                 5.16 GB
+================================================================
+Record written to record/qwen3.5-9b_8192_20260906-042600.json

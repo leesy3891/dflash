@@ -1,0 +1,74 @@
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 958.97it/s]
+Loading weights:   0%|          | 0/427 [00:00<?, ?it/s]Loading weights:   0%|          | 1/427 [00:00<02:25,  2.93it/s]Loading weights:   4%|▎         | 15/427 [00:00<00:09, 43.36it/s]Loading weights:   7%|▋         | 29/427 [00:00<00:05, 69.95it/s]Loading weights:  10%|▉         | 42/427 [00:00<00:04, 87.20it/s]Loading weights:  13%|█▎        | 54/427 [00:00<00:04, 83.77it/s]Loading weights:  16%|█▌        | 67/427 [00:00<00:03, 94.70it/s]Loading weights:  19%|█▊        | 80/427 [00:01<00:03, 103.50it/s]Loading weights:  22%|██▏       | 93/427 [00:01<00:03, 101.53it/s]Loading weights:  24%|██▍       | 104/427 [00:01<00:03, 90.90it/s]Loading weights:  28%|██▊       | 119/427 [00:01<00:02, 104.23it/s]Loading weights:  31%|███       | 132/427 [00:01<00:02, 110.08it/s]Loading weights:  34%|███▎      | 144/427 [00:01<00:02, 105.87it/s]Loading weights:  36%|███▋      | 155/427 [00:01<00:03, 85.97it/s] Loading weights:  40%|████      | 172/427 [00:01<00:02, 101.74it/s]Loading weights:  43%|████▎     | 185/427 [00:02<00:02, 107.87it/s]Loading weights:  46%|████▌     | 197/427 [00:02<00:02, 104.65it/s]Loading weights:  49%|████▊     | 208/427 [00:02<00:02, 84.50it/s] Loading weights:  53%|█████▎    | 225/427 [00:02<00:01, 102.43it/s]Loading weights:  56%|█████▌    | 238/427 [00:02<00:01, 107.81it/s]Loading weights:  59%|█████▊    | 250/427 [00:02<00:01, 104.31it/s]Loading weights:  61%|██████▏   | 262/427 [00:02<00:01, 87.59it/s] Loading weights:  65%|██████▌   | 278/427 [00:03<00:01, 102.15it/s]Loading weights:  68%|██████▊   | 291/427 [00:03<00:01, 108.02it/s]Loading weights:  71%|███████   | 303/427 [00:03<00:01, 104.60it/s]Loading weights:  74%|███████▍  | 315/427 [00:03<00:01, 87.80it/s] Loading weights:  78%|███████▊  | 331/427 [00:03<00:00, 102.38it/s]Loading weights:  80%|████████  | 343/427 [00:03<00:00, 105.34it/s]Loading weights:  83%|████████▎ | 355/427 [00:03<00:00, 105.32it/s]Loading weights:  86%|████████▌ | 367/427 [00:03<00:00, 85.93it/s] Loading weights:  90%|████████▉ | 384/427 [00:04<00:00, 103.27it/s]Loading weights:  93%|█████████▎| 397/427 [00:04<00:00, 108.88it/s]Loading weights:  96%|█████████▌| 409/427 [00:04<00:00, 102.15it/s]Loading weights:  98%|█████████▊| 420/427 [00:04<00:00, 86.23it/s] Loading weights: 100%|██████████| 427/427 [00:04<00:00, 94.47it/s]
+Loading weights:   0%|          | 0/69 [00:00<?, ?it/s]Loading weights: 100%|██████████| 69/69 [00:00<00:00, 4505.37it/s]
+[device-map] target sharded: {'model.embed_tokens': 0, 'model.layers.0': 0, 'model.layers.1': 0, 'model.layers.2': 0, 'model.layers.3': 0, 'model.layers.4': 0, 'model.layers.5': 0, 'model.layers.6': 0, 'model.layers.7': 0, 'model.layers.8': 0, 'model.layers.9': 0, 'model.layers.10': 0, 'model.layers.11': 0, 'model.layers.12': 1, 'model.layers.13': 1, 'model.layers.14': 1, 'model.layers.15': 1, 'model.layers.16': 1, 'model.layers.17': 1, 'model.layers.18': 1, 'model.layers.19': 1, 'model.layers.20': 1, 'model.layers.21': 1, 'model.layers.22': 1, 'model.layers.23': 1, 'model.layers.24': 1, 'model.layers.25': 1, 'model.layers.26': 1, 'model.layers.27': 1, 'model.layers.28': 1, 'model.layers.29': 1, 'model.layers.30': 1, 'model.layers.31': 1, 'model.norm': 1, 'model.rotary_emb': 1, 'lm_head': 1}
+[context] skipped 13 documents shorter than 32768 tokens
+
+LongBench feasibility at 32768 tokens
+task                   split    docs  natural  composed  skipped
+narrativeqa            full      200        1         0        4
+gov_report             full      200        0         0        8
+qmsum                  full      200        0         0        1
+musique                full      200        0         4        0
+hotpotqa               full      200        0         5        0
+2wikimqa               full      200        0         4        0
+passage_retrieval_en   full      200        0         2        0
+passage_count          full      200        0         2        0
+triviaqa               full      200        0         5        0
+trec                   full      200        0         5        0
+samsum                 full      200        0         4        0
+ctx=32768:   0%|          | 0/32 [00:00<?, ?it/s]ctx=32768:   3%|▎         | 1/32 [00:22<11:28, 22.20s/it]ctx=32768:   6%|▋         | 2/32 [00:43<10:58, 21.94s/it]ctx=32768:   9%|▉         | 3/32 [01:05<10:35, 21.91s/it]ctx=32768:  12%|█▎        | 4/32 [01:27<10:14, 21.93s/it]ctx=32768:  16%|█▌        | 5/32 [01:49<09:50, 21.86s/it]ctx=32768:  19%|█▉        | 6/32 [02:11<09:28, 21.85s/it]ctx=32768:  22%|██▏       | 7/32 [02:33<09:05, 21.82s/it]ctx=32768:  25%|██▌       | 8/32 [02:56<08:55, 22.32s/it]ctx=32768:  28%|██▊       | 9/32 [03:18<08:30, 22.21s/it]ctx=32768:  31%|███▏      | 10/32 [03:40<08:05, 22.06s/it]ctx=32768:  34%|███▍      | 11/32 [04:02<07:42, 22.03s/it]ctx=32768:  38%|███▊      | 12/32 [04:24<07:22, 22.14s/it]ctx=32768:  41%|████      | 13/32 [04:46<06:58, 22.03s/it]ctx=32768:  44%|████▍     | 14/32 [05:08<06:35, 21.96s/it]ctx=32768:  47%|████▋     | 15/32 [05:30<06:13, 21.97s/it]ctx=32768:  50%|█████     | 16/32 [05:52<05:52, 22.00s/it]ctx=32768:  53%|█████▎    | 17/32 [06:14<05:29, 22.00s/it]ctx=32768:  56%|█████▋    | 18/32 [06:36<05:10, 22.20s/it]ctx=32768:  59%|█████▉    | 19/32 [06:58<04:46, 22.07s/it]ctx=32768:  62%|██████▎   | 20/32 [07:20<04:24, 22.04s/it]ctx=32768:  66%|██████▌   | 21/32 [07:42<04:02, 22.02s/it]ctx=32768:  69%|██████▉   | 22/32 [08:04<03:39, 21.93s/it]ctx=32768:  72%|███████▏  | 23/32 [08:26<03:17, 21.97s/it]ctx=32768:  75%|███████▌  | 24/32 [08:48<02:56, 22.05s/it]ctx=32768:  78%|███████▊  | 25/32 [09:10<02:33, 21.97s/it]ctx=32768:  81%|████████▏ | 26/32 [09:33<02:13, 22.30s/it]ctx=32768:  84%|████████▍ | 27/32 [09:55<01:50, 22.16s/it]ctx=32768:  88%|████████▊ | 28/32 [10:17<01:28, 22.13s/it]ctx=32768:  91%|█████████ | 29/32 [10:42<01:08, 22.93s/it]ctx=32768:  94%|█████████▍| 30/32 [11:04<00:45, 22.71s/it]ctx=32768:  97%|█████████▋| 31/32 [11:35<00:25, 25.12s/it]ctx=32768: 100%|██████████| 32/32 [11:57<00:00, 24.28s/it]ctx=32768: 100%|██████████| 32/32 [11:57<00:00, 22.42s/it]
+
+================================================================
+DFlash (block_size=16)
+  Input tokens (total / mean)             1048575 / 32768.0
+  Output tokens (total / mean)            759 / 23.7
+  Total latency                           364.5s
+  TTFT mean / p50 / p95                   10.719s / 10.720s / 10.736s
+  Per-decode-token latency                28.25ms
+  Decode throughput                       35.40 tok/s
+  Peak memory (allocated / reserved)      49.91 / 55.56 GB
+  Peak hit at                             target layer 31 (sample 1)
+    peak split over devices               24.29 + 25.62 GB
+    sum of per-device maxima              54.57 GB (over-counts by 4.66)
+  Target KV cache (max)                   1.07 GB
+  -- acceptance
+  Acceptance rate (accepted/proposed)     0.4051
+  Mean acceptance length                  7.06
+  Acceptance histogram                    ['0.0%', '13.6%', '14.6%', '14.6%', '13.6%', '2.9%', '5.8%', '1.0%', '2.9%', '1.0%', '0.0%', '0.0%', '0.0%', '1.0%', '1.0%', '0.0%', '28.2%']
+  -- drafter activity
+  Gamma (tokens per proposal)             15
+  Full-gamma proposals                    102
+  Draft calls / verify steps              103 / 103
+  -- drafter memory overhead
+  Draft weights                           2.41 GB
+  Draft KV cache (max)                    0.75 GB
+  Target hidden states (max)              8.25 GB
+  Injected context feature (max)          2.00 GB
+  Total drafter overhead                  13.41 GB
+  -- drafter latency
+  Draft forward                           5.4s
+  Context-feature build                   0.2s
+  Drafter total (share of decode)         5.6s (26.0%)
+  Target verify (share of decode)         15.7s (73.0%)
+
+Baseline (block_size=1, drafter unused)
+  Input tokens (total / mean)             1048575 / 32768.0
+  Output tokens (total / mean)            338 / 10.6
+  Total latency                           350.2s
+  TTFT mean / p50 / p95                   10.462s / 10.461s / 10.483s
+  Per-decode-token latency                45.39ms
+  Decode throughput                       22.03 tok/s
+  Peak memory (allocated / reserved)      38.80 / 55.56 GB
+  Peak hit at                             target layer 30 (sample 0)
+    peak split over devices               14.29 + 24.51 GB
+    sum of per-device maxima              45.20 GB (over-counts by 6.40)
+  Target KV cache (max)                   1.05 GB
+  Decode steps (mean)                     9.6
+
+DFlash vs baseline
+  Decoding speedup                        1.61x
+  Peak allocated delta                    11.11 GB
+  Drafter memory overhead                 13.41 GB
+================================================================
+Record written to record/qwen3.5-9b_32768_20260908-072321.json
