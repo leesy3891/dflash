@@ -558,6 +558,37 @@ Measured, selective, DFlash configuration (GB):
 | transient | 0.10 | 0.62 | 2.71 | | **1.94** | **7.81** | **31.79** |
 | = peak allocated | 18.34 | 21.73 | 35.25 | | 21.82 | 29.84 | 62.45 |
 
+### What the drafter actually costs at the peak
+
+`draft_overhead_gb` sums five terms that are each resident for the whole run,
+so it answers "how much memory does the drafter keep alive". It does *not*
+answer "how much taller does the drafter make the peak", and at long context
+the two differ by a factor of three to fifteen:
+
+| | 4k | 8k | 16k | 32k | 64k |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| qwen3-8b: peak(DFlash) − peak(baseline) | 0.16 | 0.31 | 0.63 | 1.25 | 2.50 |
+| qwen3-8b: `max_target_hidden_states_gb` | 0.16 | 0.31 | 0.63 | 1.25 | 2.50 |
+| qwen3-8b: `draft_overhead_gb` | 2.35 | 2.74 | 3.53 | 5.08 | 8.21 |
+
+The delta equals the hidden-state term exactly on Qwen3-8B, and within 12% on
+Qwen3.5-9B (4.00 against 4.00 at 64k). The reason is where the peak lands:
+32/32 samples peak inside the prefill stack, and at that moment the only
+drafter-attributable tensor alive is the set of tapped residual streams. The
+draft weights are resident in the baseline too, and the draft KV cache and the
+injected context feature are both built *after* prefill has peaked, in a
+trough the peak never sees.
+
+So the honest one-line answer for a memory budget is: **running DFlash on top
+of an existing serving setup costs one extra copy of the injected layers'
+hidden states at the peak** — `n_inj · S · d · p`, 40 KiB per token on the 8B
+and 64 KiB on the 9B — while `draft_overhead_gb` is the right figure for total
+resident footprint. Under `--hidden-states full` the same delta is an order of
+magnitude worse (29.5 GB at 8B 64k) because the whole `L_t + 1` tuple is what
+sits there instead.
+
+### Why the two presets diverge
+
 The transient column is the whole story of the difference between the two
 presets. On Qwen3-8B it stays under 3 GB even at 64k. On Qwen3.5-9B it is linear
 in `S` and overtakes everything else — 31.79 GB at 64k against 30.65 GB of
