@@ -1,0 +1,80 @@
+Loading weights:   0%|          | 0/399 [00:00<?, ?it/s]Loading weights: 100%|██████████| 399/399 [00:00<00:00, 5832.20it/s]
+Loading weights:   0%|          | 0/58 [00:00<?, ?it/s]Loading weights: 100%|██████████| 58/58 [00:00<00:00, 9412.64it/s]
+[context] skipped 161 documents shorter than 16384 tokens
+
+LongBench feasibility at 16384 tokens
+task                   split    docs  natural  composed  skipped
+gov_report             e         300        0         0       15
+multi_news             e         294        1         0       16
+qasper                 e         224        2         0       13
+multifieldqa_en        e         150        1         0       10
+lcc                    e         300        2         0       12
+repobench-p            e         300       10         0        6
+hotpotqa               e         300        2         0       12
+2wikimqa               e         300        4         0       14
+triviaqa               e         300        6         0        9
+samsum                 e         300        1         0       13
+trec                   e         300        3         0       15
+passage_count          e         300        0         0        9
+passage_retrieval_en   e         300        0         0       17
+ctx=16384:   0%|          | 0/32 [00:00<?, ?it/s]ctx=16384:   3%|▎         | 1/32 [00:41<21:39, 41.91s/it]ctx=16384:   6%|▋         | 2/32 [01:28<22:28, 44.95s/it]ctx=16384:   9%|▉         | 3/32 [02:11<21:15, 43.97s/it]ctx=16384:  12%|█▎        | 4/32 [02:18<13:41, 29.34s/it]ctx=16384:  16%|█▌        | 5/32 [02:27<09:49, 21.84s/it]ctx=16384:  19%|█▉        | 6/32 [03:21<14:13, 32.84s/it]ctx=16384:  22%|██▏       | 7/32 [03:55<13:49, 33.20s/it]ctx=16384:  25%|██▌       | 8/32 [04:47<15:38, 39.10s/it]ctx=16384:  28%|██▊       | 9/32 [04:54<11:07, 29.04s/it]ctx=16384:  31%|███▏      | 10/32 [05:01<08:09, 22.26s/it]ctx=16384:  34%|███▍      | 11/32 [05:08<06:08, 17.56s/it]ctx=16384:  38%|███▊      | 12/32 [05:54<08:48, 26.42s/it]ctx=16384:  41%|████      | 13/32 [06:10<07:22, 23.29s/it]ctx=16384:  44%|████▍     | 14/32 [06:17<05:30, 18.37s/it]ctx=16384:  47%|████▋     | 15/32 [06:24<04:13, 14.93s/it]ctx=16384:  50%|█████     | 16/32 [07:12<06:36, 24.77s/it]ctx=16384:  53%|█████▎    | 17/32 [07:19<04:51, 19.41s/it]ctx=16384:  56%|█████▋    | 18/32 [08:04<06:18, 27.03s/it]ctx=16384:  59%|█████▉    | 19/32 [08:11<04:34, 21.12s/it]ctx=16384:  62%|██████▎   | 20/32 [08:58<05:46, 28.86s/it]ctx=16384:  66%|██████▌   | 21/32 [09:07<04:11, 22.89s/it]ctx=16384:  69%|██████▉   | 22/32 [09:14<03:01, 18.12s/it]ctx=16384:  72%|███████▏  | 23/32 [09:28<02:31, 16.88s/it]ctx=16384:  75%|███████▌  | 24/32 [09:50<02:27, 18.47s/it]ctx=16384:  78%|███████▊  | 25/32 [09:58<01:48, 15.43s/it]ctx=16384:  81%|████████▏ | 26/32 [10:39<02:18, 23.05s/it]ctx=16384:  84%|████████▍ | 27/32 [11:25<02:29, 29.95s/it]ctx=16384:  88%|████████▊ | 28/32 [11:32<01:32, 23.14s/it]ctx=16384:  91%|█████████ | 29/32 [11:41<00:56, 18.72s/it]ctx=16384:  94%|█████████▍| 30/32 [11:48<00:30, 15.18s/it]ctx=16384:  97%|█████████▋| 31/32 [12:47<00:28, 28.30s/it]ctx=16384: 100%|██████████| 32/32 [12:54<00:00, 21.90s/it]ctx=16384: 100%|██████████| 32/32 [12:54<00:00, 24.19s/it]
+
+================================================================
+DFlash (block_size=16)
+  Input tokens (total / mean)             524288 / 16384.0
+  Output tokens (total / mean)            6968 / 217.8
+  Total latency                           402.0s
+  TTFT mean / p50 / p95                   3.266s / 3.265s / 3.269s
+  Per-decode-token latency                42.69ms
+  Decode throughput                       23.43 tok/s
+  Peak memory (allocated / reserved)      21.73 / 22.02 GB
+  Peak hit at                             target layer 35 @ sample 6
+  -- memory budget at peak
+    target weights                          15.26 GB    70.2%
+    target KV cache (max)                    2.32 GB    10.7%
+    draft weights                            1.95 GB     9.0%
+    draft KV cache (max)                     0.32 GB     1.5%
+    target hidden states (max)               0.63 GB     2.9%
+    injected context feature (max)           0.63 GB     2.9%
+    resident subtotal                       21.10 GB    97.1%
+    transient (activation, unaccounted)      0.62 GB     2.9%
+    = peak allocated                        21.73 GB
+  -- acceptance
+  Acceptance rate (accepted/proposed)     0.1020
+  Mean acceptance length                  2.50
+  Acceptance histogram                    ['0.0%', '42.9%', '23.6%', '13.0%', '7.0%', '4.1%', '3.1%', '2.4%', '1.4%', '1.1%', '0.7%', '0.4%', '0.2%', '0.1%', '0.0%', '0.0%', '0.1%']
+  -- drafter activity
+  Gamma (tokens per proposal)             15
+  Full-gamma proposals                    2711
+  Draft calls / verify steps              2769 / 2769
+  Total drafter overhead                  3.53 GB
+  -- drafter latency
+  Draft forward                           20.4s
+  Context-feature build                   0.2s
+  Drafter total (share of decode)         20.6s (6.9%)
+  Target verify (share of decode)         270.5s (91.0%)
+
+Baseline (block_size=1, drafter unused)
+  Input tokens (total / mean)             524288 / 16384.0
+  Output tokens (total / mean)            6991 / 218.5
+  Total latency                           370.7s
+  TTFT mean / p50 / p95                   3.268s / 3.268s / 3.272s
+  Per-decode-token latency                38.06ms
+  Decode throughput                       26.28 tok/s
+  Peak memory (allocated / reserved)      21.10 / 22.02 GB
+  Peak hit at                             target layer 35 @ sample 6
+  -- memory budget at peak
+    target weights                          15.26 GB    72.3%
+    target KV cache (max)                    2.32 GB    11.0%
+    draft weights (loaded, unused)           1.95 GB     9.3%
+    resident subtotal                       19.53 GB    92.6%
+    transient (activation, unaccounted)      1.57 GB     7.4%
+    = peak allocated                        21.10 GB
+  Decode steps (mean)                     217.5
+
+DFlash vs baseline
+  Decoding speedup                        0.89x
+  Peak allocated delta                    0.63 GB
+  Drafter memory overhead                 3.53 GB
+================================================================
+Record written to record_selective/qwen3-8b_16384_20260908-191338.json

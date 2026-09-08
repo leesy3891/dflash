@@ -6,3 +6,21 @@
 09-08 18:54:39 [qwen3.5-9b] DONE ctx=4096 (exit 0)
 09-08 18:54:39 [qwen3.5-9b] START ctx=8192 on GPU 2
 09-08 18:58:13 [qwen3-8b] START ctx=65536 on GPU 3 
+09-08 19:00:09 [qwen3-8b] DONE ctx=8192 (exit 0)
+09-08 19:00:09 [qwen3-8b] START ctx=16384 on GPU 0
+09-08 19:02:44 [qwen3.5-9b] DONE ctx=8192 (exit 0)
+09-08 19:02:44 [qwen3.5-9b] START ctx=16384 on GPU 2
+09-08 19:13:39 [qwen3-8b] DONE ctx=16384 (exit 0)
+09-08 19:13:39 [qwen3-8b] START ctx=32768 on GPU 0
+09-08 19:15:37 [qwen3.5-9b] DONE ctx=16384 (exit 0)
+09-08 19:15:37 [qwen3.5-9b] START ctx=32768 on GPU 2
+09-08 19:24:32 [qwen3-8b] DONE ctx=32768 (exit 0)
+09-08 19:24:32 [qwen3-8b] sweep finished
+09-08 19:27:59 [qwen3.5-9b] DONE ctx=32768 (exit 0)
+09-08 19:27:59 [qwen3.5-9b] sweep finished
+09-08 19:27:59 [queue] phase 1 drained
+09-08 19:30:13 [qwen3-8b] DONE ctx=65536 (exit 0)
+09-08 19:30:13 [qwen3.5-9b] waiting for 2 idle GPUs
+09-08 19:30:13 [qwen3.5-9b] START ctx=65536 on GPU 0,2 --device-map balanced
+09-08 19:58:39 [qwen3.5-9b] DONE ctx=65536 (exit 0)
+09-08 19:58:39 [queue] phase 2 drained
