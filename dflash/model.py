@@ -259,7 +259,16 @@ def _draft_value(config, name, default=None):
 def _raw_input_embeddings(
     target: nn.Module, input_ids: torch.Tensor, scale: float = 1.0
 ) -> torch.Tensor:
-    return F.embedding(input_ids, target.get_input_embeddings().weight) * scale
+    """The drafter's noise embedding, taken from the target's embedding table.
+
+    Reads the weight directly rather than calling the module, which on a sharded
+    target means accelerate's device hooks never run: if the embedding table
+    landed on a different card from the drafter, both the lookup and the result
+    have to be bridged by hand.
+    """
+    weight = target.get_input_embeddings().weight
+    embedding = F.embedding(input_ids.to(weight.device), weight) * scale
+    return embedding.to(input_ids.device)
 
 
 def _output_head(target: nn.Module) -> nn.Module:
@@ -381,11 +390,19 @@ class PeakTracker:
         self._site: dict = {}
         self._decode_token = None
         self._draft_step = None
+        self._open_decode_token = None
+        self._open_draft_step = None
         if self.enabled:
             _reset_device_peaks()
 
     def context(self, *, decode_token=None, draft_step=None) -> None:
-        """Name the decode position the following intervals belong to."""
+        """Name the decode position the *following* intervals belong to.
+
+        This does not touch the interval already in flight. An interval that
+        opened during prefill and is still open when the decode loop starts is
+        prefill's, and stamping it with decode token 0 would report a prefill
+        peak as a decode-time one.
+        """
         self._decode_token = decode_token
         self._draft_step = draft_step
 
@@ -409,12 +426,15 @@ class PeakTracker:
             self.peak_per_device = per_device
             self.peak_site = {
                 "operation": self._label,
-                "decode_token": self._decode_token,
-                "draft_step": self._draft_step,
+                # Captured when this interval opened -- see context().
+                "decode_token": self._open_decode_token,
+                "draft_step": self._open_draft_step,
                 **self._site,
             }
         _reset_device_peaks()
         self._label, self._site = label, site
+        self._open_decode_token = self._decode_token
+        self._open_draft_step = self._draft_step
         return total
 
     def watch(self, layers) -> list:
@@ -657,6 +677,10 @@ def dflash_generate(
     output_ids[:, num_input_tokens:num_input_tokens + 1] = sample(
         output.logits, temperature, top_p, top_k
     )
+    # Closed for every configuration, not just DFlash: without it the last
+    # prefill layer's interval stays open into the first verify, and the peak
+    # of a baseline run gets reported against a prefill label.
+    tracker.boundary("prefill: first token")
     if block_size > 1:
         tracker.boundary("prefill: context-feature concat")
         with context_feature_timer:

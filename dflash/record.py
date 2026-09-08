@@ -87,6 +87,92 @@ def _peak_site(runs: list[dict]) -> dict | None:
     return best[1] if best else None
 
 
+def describe_peak_site(site: dict | None) -> str:
+    """One line naming the operation, the step, and the layer that peaked.
+
+    The peak of a run is one interval of ``PeakTracker``, and every interval
+    carries the operation it ran plus whatever positional context that phase
+    has: the decode token and drafter step in the decode loop, the prefill
+    chunk during prefill, the decoder layer index when the layer pre-hooks are
+    on. This renders whichever of those the site actually has, so a prefill
+    peak reads as a layer and a decode peak reads as a step.
+    """
+    if not site:
+        return "unknown"
+    where = str(site.get("operation", "?"))
+    parts = []
+    if site.get("decode_token") is not None:
+        parts.append(f"decode token {site['decode_token']}")
+    if site.get("draft_step") is not None:
+        parts.append(f"drafter step {site['draft_step']}")
+    if site.get("layer") is not None and "layer" not in where:
+        parts.append(f"target layer {site['layer']}")
+    if site.get("chunk") is not None:
+        parts.append(f"prefill chunk {site['chunk']}")
+    if site.get("sample") is not None:
+        parts.append(f"sample {site['sample']}")
+    return where + (" @ " + ", ".join(parts) if parts else "")
+
+
+def _peak_site_histogram(runs: list[dict]) -> dict:
+    """How often each operation set a sample's peak.
+
+    One sample's peak site can be an accident of where that prompt stopped;
+    the distribution over samples says whether the operation is really the
+    high-water mark of the configuration.
+    """
+    counts: dict[str, int] = {}
+    for run in runs:
+        site = run.get("peak_site")
+        if site is None:
+            continue
+        key = str(site.get("operation", "?"))
+        counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: -kv[1]))
+
+
+def _budget(summary: dict, *, drafter: bool) -> dict:
+    """Split the peak into the tensors that are accounted for, plus the rest.
+
+    Every term is a max over samples of a quantity that is resident for the
+    whole run, so the sum is an upper bound on the resident part rather than a
+    simultaneous reading. What is left over -- ``transient_gb`` -- is the
+    activation the run needed on top of everything it keeps: attention
+    workspaces, logits, and (under ``--hidden-states full``) the target output
+    object that stays referenced into the first decode step.
+    """
+    terms = {
+        "target_weight_gb": summary["target_weight_gb"],
+        "target_cache_gb": summary["max_target_cache_gb"],
+    }
+    if not drafter:
+        # The drafter is loaded on the same device for the whole benchmark, so
+        # its weights sit in the baseline's peak as well even though the
+        # baseline never calls it. Listing it separately keeps the baseline's
+        # transient term comparable with DFlash's instead of absorbing 2 GB of
+        # weights, and is why a DFlash-minus-baseline peak delta understates
+        # the drafter's true cost.
+        terms["draft_weight_resident_gb"] = summary["draft_weight_gb"]
+    if drafter:
+        terms.update(
+            {
+                "draft_weight_gb": summary["draft_weight_gb"],
+                "draft_cache_gb": summary["max_draft_cache_gb"],
+                "target_hidden_states_gb": summary["max_target_hidden_states_gb"],
+                "context_feature_gb": summary["max_context_feature_gb"],
+            }
+        )
+        if summary.get("max_draft_activation_gb") is not None:
+            terms["draft_activation_gb"] = summary["max_draft_activation_gb"]
+    resident = sum(terms.values())
+    return {
+        **terms,
+        "resident_total_gb": resident,
+        "transient_gb": summary["peak_memory_gb"] - resident,
+        "peak_memory_gb": summary["peak_memory_gb"],
+    }
+
+
 def _maximum(values: list, default=0):
     present = [v for v in values if v is not None]
     return max(present) if present else default
@@ -103,6 +189,7 @@ def summarize(
     block_size: int,
     draft_weight_bytes: int,
     *,
+    target_weight_bytes: int = 0,
     drafter: bool = True,
 ) -> dict:
     """Aggregate per-sample metrics for one decoding configuration.
@@ -150,11 +237,19 @@ def summarize(
         )
         / _GB,
         "max_target_cache_gb": _maximum([r["target_cache_bytes"] for r in runs]) / _GB,
+        # Which operation set each sample's peak, counted over samples.
+        "peak_site_histogram": _peak_site_histogram(runs),
+        # The target's own weights. The baseline pays these too, so they are
+        # the floor both configurations are measured against.
+        "target_weight_gb": target_weight_bytes / _GB,
     }
     if not drafter:
         summary["mean_decode_steps"] = statistics.mean(
             r["num_decode_steps"] for r in runs
         )
+        # Not a cost the baseline incurs, but a tensor resident on its device.
+        summary["draft_weight_gb"] = draft_weight_bytes / _GB
+        summary["memory_budget"] = _budget(summary, drafter=False)
         return summary
 
     total_proposed = sum(r["num_proposed_tokens"] for r in runs)
@@ -233,6 +328,8 @@ def summarize(
             ),
         }
     )
+    # Built last: it reads the drafter terms above, which only exist by now.
+    summary["memory_budget"] = _budget(summary, drafter=True)
     return summary
 
 
@@ -279,13 +376,7 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
         )
         site = summary.get("peak_site")
         if site:
-            where = site["operation"]
-            if site.get("decode_token") is not None:
-                where += (
-                    f", decode token {site['decode_token']}"
-                    f", drafter step {site['draft_step']}"
-                )
-            row("Peak hit at", f"{where} (sample {site['sample']})")
+            row("Peak hit at", describe_peak_site(site))
             if len(site.get("per_device_gb") or []) > 1:
                 row(
                     "  peak split over devices",
@@ -297,7 +388,52 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
                     f"(over-counts by "
                     f"{summary['peak_memory_sum_device_maxima_gb'] - summary['peak_memory_gb']:.2f})",
                 )
-        row("Target KV cache (max)", f"{summary['max_target_cache_gb']:.2f} GB")
+            histogram = summary.get("peak_site_histogram") or {}
+            if len(histogram) > 1:
+                total = sum(histogram.values())
+                row(
+                    "  peaking operation over samples",
+                    ", ".join(
+                        f"{name} {count}/{total}"
+                        for name, count in list(histogram.items())[:3]
+                    ),
+                )
+        _print_budget(summary)
+
+
+    def _print_budget(summary: dict) -> None:
+        """The peak, split into what the run keeps and what it borrows."""
+        budget = summary.get("memory_budget")
+        if not budget:
+            return
+        labels = [
+            ("target_weight_gb", "target weights"),
+            ("target_cache_gb", "target KV cache (max)"),
+            ("draft_weight_resident_gb", "draft weights (loaded, unused)"),
+            ("draft_weight_gb", "draft weights"),
+            ("draft_cache_gb", "draft KV cache (max)"),
+            ("target_hidden_states_gb", "target hidden states (max)"),
+            ("context_feature_gb", "injected context feature (max)"),
+            ("draft_activation_gb", "draft activation (max)"),
+        ]
+        peak = budget["peak_memory_gb"] or 1.0
+        print("  -- memory budget at peak")
+        for key, label in labels:
+            if key not in budget:
+                continue
+            value = budget[key]
+            row(f"  {label}", f"{value:7.2f} GB   {value / peak * 100:5.1f}%")
+        row(
+            "  resident subtotal",
+            f"{budget['resident_total_gb']:7.2f} GB   "
+            f"{budget['resident_total_gb'] / peak * 100:5.1f}%",
+        )
+        row(
+            "  transient (activation, unaccounted)",
+            f"{budget['transient_gb']:7.2f} GB   "
+            f"{budget['transient_gb'] / peak * 100:5.1f}%",
+        )
+        row("  = peak allocated", f"{budget['peak_memory_gb']:7.2f} GB")
 
     print(f"\n{'=' * 64}")
     print("DFlash (block_size=%d)" % block_size)
@@ -313,13 +449,8 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
     row("Gamma (tokens per proposal)", str(dflash["gamma"]))
     row("Full-gamma proposals", str(dflash["total_full_gamma_proposals"]))
     row("Draft calls / verify steps", f"{dflash['total_draft_calls']} / {dflash['total_verify_steps']}")
-    print("  -- drafter memory overhead")
-    row("Draft weights", f"{dflash['draft_weight_gb']:.2f} GB")
-    row("Draft KV cache (max)", f"{dflash['max_draft_cache_gb']:.2f} GB")
-    row("Target hidden states (max)", f"{dflash['max_target_hidden_states_gb']:.2f} GB")
-    row("Injected context feature (max)", f"{dflash['max_context_feature_gb']:.2f} GB")
-    if dflash["max_draft_activation_gb"] is not None:
-        row("Draft activation peak (max)", f"{dflash['max_draft_activation_gb']:.2f} GB")
+    # The per-term split is printed by the memory budget above; this is the
+    # drafter-only subtotal, the figure the context sweep compares across runs.
     row("Total drafter overhead", f"{dflash['draft_overhead_gb']:.2f} GB")
     if dflash["drafter_latency_s"] is not None:
         print("  -- drafter latency")

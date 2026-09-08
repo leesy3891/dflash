@@ -681,9 +681,17 @@ def _run_context_length(args: argparse.Namespace) -> None:
         per_sample.append(entry)
 
     draft_weight_bytes = module_bytes(draft_model)
+    # The baseline pays the target's weights too, so recording them lets the
+    # peak be split into weights / KV / drafter overhead / activation rather
+    # than compared as one opaque number.
+    target_weight_bytes = module_bytes(target)
     summaries = {
         name: record_module.summarize(
-            values, block_size, draft_weight_bytes, drafter=name == "dflash"
+            values,
+            block_size,
+            draft_weight_bytes,
+            target_weight_bytes=target_weight_bytes,
+            drafter=name == "dflash",
         )
         for name, values in runs.items()
     }
