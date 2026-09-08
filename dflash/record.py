@@ -28,6 +28,13 @@ def sample_metrics(stats, *, drafter: bool = True) -> dict:
         "num_decode_steps": stats.num_verify_steps,
         "peak_memory_bytes": stats.peak_memory_bytes,
         "peak_memory_reserved_bytes": stats.peak_memory_reserved_bytes,
+        "peak_memory_sum_device_maxima_bytes": getattr(
+            stats, "peak_memory_sum_device_maxima_bytes", None
+        ),
+        "peak_memory_per_device_bytes": getattr(
+            stats, "peak_memory_per_device_bytes", None
+        ),
+        "peak_site": getattr(stats, "peak_site", None),
         "target_cache_bytes": stats.target_cache_bytes,
         "target_forward_s": stats.target_forward_s,
     }
@@ -56,6 +63,28 @@ def _percentile(values: list[float], fraction: float) -> float:
     ordered = sorted(values)
     index = min(len(ordered) - 1, int(round(fraction * (len(ordered) - 1))))
     return ordered[index]
+
+
+def _peak_site(runs: list[dict]) -> dict | None:
+    """The site of the largest peak across samples, with its sample index."""
+    best = None
+    for index, run in enumerate(runs):
+        site = run.get("peak_site")
+        if site is None:
+            continue
+        if best is None or run["peak_memory_bytes"] > best[0]:
+            best = (
+                run["peak_memory_bytes"],
+                {
+                    **site,
+                    "sample": index,
+                    "peak_gb": run["peak_memory_bytes"] / _GB,
+                    "per_device_gb": [
+                        b / _GB for b in (run.get("peak_memory_per_device_bytes") or [])
+                    ],
+                },
+            )
+    return best[1] if best else None
 
 
 def _maximum(values: list, default=0):
@@ -103,6 +132,16 @@ def summarize(
         "decode_throughput_tok_s": total_output / total_decode,
         # Memory
         "peak_memory_gb": _maximum([r["peak_memory_bytes"] for r in runs]) / _GB,
+        # Where that peak came from: the operation, decode token and drafter
+        # step of the worst interval across every sample. See PeakTracker.
+        "peak_site": _peak_site(runs),
+        # The pre-fix figure -- per-device maxima summed regardless of whether
+        # they coexisted. Equal to peak_memory_gb on one device; larger when the
+        # target is sharded, and the gap is pure over-count.
+        "peak_memory_sum_device_maxima_gb": _maximum(
+            [r.get("peak_memory_sum_device_maxima_bytes") for r in runs]
+        )
+        / _GB,
         # Allocated is what the tensors occupy; reserved is what the caching
         # allocator holds. nvidia-smi shows reserved plus the CUDA context, so
         # reserved is the figure to reconcile against it.
@@ -238,6 +277,26 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
             "Peak memory (allocated / reserved)",
             f"{summary['peak_memory_gb']:.2f} / {summary['peak_memory_reserved_gb']:.2f} GB",
         )
+        site = summary.get("peak_site")
+        if site:
+            where = site["operation"]
+            if site.get("decode_token") is not None:
+                where += (
+                    f", decode token {site['decode_token']}"
+                    f", drafter step {site['draft_step']}"
+                )
+            row("Peak hit at", f"{where} (sample {site['sample']})")
+            if len(site.get("per_device_gb") or []) > 1:
+                row(
+                    "  peak split over devices",
+                    " + ".join(f"{g:.2f}" for g in site["per_device_gb"]) + " GB",
+                )
+                row(
+                    "  sum of per-device maxima",
+                    f"{summary['peak_memory_sum_device_maxima_gb']:.2f} GB "
+                    f"(over-counts by "
+                    f"{summary['peak_memory_sum_device_maxima_gb'] - summary['peak_memory_gb']:.2f})",
+                )
         row("Target KV cache (max)", f"{summary['max_target_cache_gb']:.2f} GB")
 
     print(f"\n{'=' * 64}")

@@ -84,7 +84,65 @@ def apply_chat_template(
     )
 
 
-def load_transformers_models(model_id: str, draft_id: str, device):
+def _rope_config(config):
+    """The sub-config that owns RoPE, unwrapping a text-config container."""
+    return getattr(config, "text_config", None) or config
+
+
+def apply_rope_scaling(
+    config, *, rope_type: str = "yarn", factor: float | None = None,
+    original_max: int | None = None, needed_positions: int | None = None,
+) -> dict:
+    """Widen a model's RoPE so positions past its trained window stay in range.
+
+    Qwen3-8B declares 40960 positions and its DFlash draft inherits the same
+    number, so a 64k prompt is pure extrapolation for both. YaRN interpolates
+    instead, and has to be applied to target and draft identically -- the
+    drafter is fed the target's absolute position ids, so the two must agree on
+    what a position means. With no explicit ``factor`` the smallest power of two
+    that covers ``needed_positions`` is used, never below 2.
+
+    Returns the parameters written, for the record file.
+    """
+    text = _rope_config(config)
+    params = dict(getattr(text, "rope_parameters", None) or {})
+    params.setdefault("rope_theta", getattr(text, "rope_theta", 10000.0))
+    original = int(original_max or text.max_position_embeddings)
+    if factor is None:
+        factor = 2.0
+        while needed_positions and original * factor < needed_positions:
+            factor *= 2
+    params.update(
+        rope_type=rope_type,
+        factor=float(factor),
+        original_max_position_embeddings=original,
+    )
+    text.rope_scaling = params
+    text.max_position_embeddings = int(original * float(factor))
+    return {**params, "max_position_embeddings": text.max_position_embeddings}
+
+
+def free_memory_budget(reserve_gb: float = 2.0) -> dict[int, str]:
+    """Per-GPU weight budget from what is actually free right now.
+
+    ``device_map="auto"`` plans against each card's *total* memory, which on a
+    shared machine hands layers to a GPU someone else is already using. This
+    reports free memory instead, less a reserve for the drafter and the forward
+    activations that land on top of the weights.
+    """
+    import torch
+
+    budget = {}
+    for index in range(torch.cuda.device_count()):
+        free_bytes, _ = torch.cuda.mem_get_info(index)
+        budget[index] = f"{max(free_bytes / (1 << 30) - reserve_gb, 0.0):.1f}GiB"
+    return budget
+
+
+def load_transformers_models(
+    model_id: str, draft_id: str, device, rope: dict | None = None,
+    device_map: str | None = None, max_memory: dict | None = None,
+):
     import torch
     from transformers import (
         AutoConfig,
@@ -96,13 +154,29 @@ def load_transformers_models(model_id: str, draft_id: str, device):
     from .model import DFlash2DraftModel, DFlashDraftModel
 
     target_kwargs = {"attn_implementation": "sdpa", "dtype": torch.bfloat16}
+    target_config = AutoConfig.from_pretrained(model_id)
+    config = AutoConfig.from_pretrained(draft_id)
+    if rope is not None:
+        rope["target"] = apply_rope_scaling(target_config, **rope["request"])
+        rope["draft"] = apply_rope_scaling(config, **rope["request"])
+        target_kwargs["config"] = target_config
+
+    if device_map is not None:
+        # Sharding the target buys headroom for the prefill activation, which
+        # at 64k is the term that does not fit. The drafter stays whole on
+        # `device`; dflash_generate keeps its bookkeeping there and moves the
+        # few tensors that cross a shard boundary explicitly.
+        target_kwargs["device_map"] = device_map
+        target_kwargs["max_memory"] = (
+            max_memory if max_memory is not None else free_memory_budget()
+        )
+
     try:
         target = AutoModelForCausalLM.from_pretrained(model_id, **target_kwargs)
     except ValueError:
         target = AutoModelForImageTextToText.from_pretrained(model_id, **target_kwargs)
-    target = target.to(device).eval()
+    target = (target if device_map is not None else target.to(device)).eval()
 
-    config = AutoConfig.from_pretrained(draft_id)
     draft_class = (
         DFlash2DraftModel
         if "DFlash2DraftModel" in (config.architectures or [])
@@ -113,6 +187,7 @@ def load_transformers_models(model_id: str, draft_id: str, device):
             draft_id,
             attn_implementation="sdpa",
             dtype=torch.bfloat16,
+            **({"config": config} if rope is not None else {}),
         )
         .to(device)
         .eval()
@@ -434,6 +509,71 @@ def _run_openai(args: argparse.Namespace) -> None:
     print(f"{'=' * 50}")
 
 
+def _build_context_samples(args, tokenizer) -> tuple[list[dict], list[str], dict]:
+    """Fit the LongBench prompts for a context-length run and report the mix."""
+    from . import context as context_module
+
+    def apply_template(user_content: str) -> str:
+        return apply_chat_template(
+            tokenizer, [{"role": "user", "content": user_content}], args.reasoning
+        )
+
+    num_samples = args.max_samples if args.max_samples is not None else 32
+    tasks = context_module.resolve_tasks(args.context_task, args.context_length)
+    report: dict = {}
+    samples = context_module.build_dataset(
+        tokenizer,
+        apply_template,
+        args.context_length,
+        num_samples,
+        tasks=tasks,
+        split=args.context_split,
+        extend=args.context_extend,
+        report=report,
+    )
+    context_module.print_report(report, args.context_length)
+    return samples, tasks, report
+
+
+def _parse_max_memory(spec: str | None) -> dict | None:
+    """Parse ``--max-memory "0=20GiB,1=32GiB"`` into accelerate's mapping."""
+    if not spec:
+        return None
+    budget = {}
+    for item in spec.split(","):
+        index, _, size = item.partition("=")
+        budget[int(index.strip())] = size.strip()
+    return budget
+
+
+def _max_position_embeddings(config) -> int | None:
+    """The target's trained position budget, through a text-config wrapper."""
+    for candidate in (config, getattr(config, "text_config", None)):
+        if candidate is None:
+            continue
+        value = getattr(candidate, "max_position_embeddings", None)
+        if value:
+            return int(value)
+    return None
+
+
+def _run_context_dry_run(args: argparse.Namespace) -> None:
+    """Fit the prompts and print the feasibility table without loading models."""
+    from transformers import AutoTokenizer
+
+    from . import context as context_module
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    samples, _, _ = _build_context_samples(args, tokenizer)
+    lengths = [sample["num_input_tokens"] for sample in samples]
+    composed = sum(sample["composed"] for sample in samples)
+    print(
+        f"\n{len(samples)} prompts, {min(lengths)}-{max(lengths)} tokens, "
+        f"{len(samples) - composed} natural / {composed} composed"
+    )
+    print(f"extend={context_module.resolve_extend(args.context_extend, args.context_length)}")
+
+
 def _run_context_length(args: argparse.Namespace) -> None:
     """Benchmark at a fixed input context length and write a record file."""
     import torch
@@ -444,21 +584,46 @@ def _run_context_length(args: argparse.Namespace) -> None:
 
     torch.manual_seed(0)
     device = torch.device("cuda:0")
-    target, draft_model, tokenizer = load_transformers_models(
-        args.model, args.draft, device
+    rope = (
+        {
+            "request": {
+                "rope_type": args.rope_scaling,
+                "factor": args.rope_factor,
+                "original_max": args.rope_original_max,
+                "needed_positions": args.context_length + args.max_new_tokens,
+            }
+        }
+        if args.rope_scaling != "none"
+        else None
     )
+    target, draft_model, tokenizer = load_transformers_models(
+        args.model, args.draft, device, rope=rope, device_map=args.device_map,
+        max_memory=_parse_max_memory(args.max_memory),
+    )
+    if args.device_map is not None:
+        print(f"[device-map] target sharded: {getattr(target, 'hf_device_map', {})}")
+    if rope is not None:
+        print(f"[rope] target {rope['target']}")
+        print(f"[rope] draft  {rope['draft']}")
     block_size = args.block_size if args.block_size is not None else draft_model.block_size
 
-    def apply_template(user_content: str) -> str:
-        return apply_chat_template(
-            tokenizer, [{"role": "user", "content": user_content}], args.reasoning
-        )
+    samples, tasks, task_report = _build_context_samples(args, tokenizer)
 
-    num_samples = args.max_samples if args.max_samples is not None else 32
-    tasks = context_module.resolve_tasks(args.context_task)
-    samples = context_module.build_dataset(
-        tokenizer, apply_template, args.context_length, num_samples, tasks=tasks
+    # RoPE extrapolates past the trained window without complaining, so say so
+    # rather than let a silently-out-of-range run look like a measurement.
+    position_limit = _max_position_embeddings(target.config)
+    beyond_position_limit = (
+        position_limit is not None
+        and args.context_length + args.max_new_tokens > position_limit
     )
+    if beyond_position_limit:
+        print(
+            f"[warning] {args.model} was trained to {position_limit} positions; "
+            f"{args.context_length} + {args.max_new_tokens} goes past it. Both "
+            f"target and draft are extrapolating, so acceptance at this length "
+            f"is not comparable with the rest of the sweep. Consider "
+            f"--rope-scaling yarn."
+        )
 
     def encode(prompt: str):
         return tokenizer.encode(
@@ -476,6 +641,8 @@ def _run_context_length(args: argparse.Namespace) -> None:
         dflash_generate(
             draft_model, target, warmup_ids, min(64, args.max_new_tokens), None,
             args.temperature, args.top_p, args.top_k, block_size=size,
+            hidden_states=args.hidden_states,
+            prefill_chunk=args.prefill_chunk,
         )
 
     stop = stop_token_ids(target, tokenizer)
@@ -486,6 +653,8 @@ def _run_context_length(args: argparse.Namespace) -> None:
         entry = {
             "index": index,
             "task": sample["task"],
+            "split": sample["split"],
+            "composed": sample["composed"],
             "source_index": sample["source_index"],
             "fitted_input_tokens": sample["num_input_tokens"],
         }
@@ -503,6 +672,8 @@ def _run_context_length(args: argparse.Namespace) -> None:
                 block_size=size,
                 return_stats=True,
                 profile_draft_memory=args.profile_draft_memory and name == "dflash",
+                hidden_states=args.hidden_states,
+                prefill_chunk=args.prefill_chunk,
             )
             metrics = record_module.sample_metrics(stats, drafter=name == "dflash")
             runs[name].append(metrics)
@@ -524,8 +695,25 @@ def _run_context_length(args: argparse.Namespace) -> None:
         "draft": args.draft,
         "model_name": args.model_name,
         "context_length": args.context_length,
-        "context_source": f"{context_module.LONGBENCH_REPO} (LongBench-E)",
+        "context_source": context_module.LONGBENCH_REPO,
         "context_tasks": tasks,
+        "context_split": args.context_split,
+        "context_extend": context_module.resolve_extend(
+            args.context_extend, args.context_length
+        ),
+        "context_task_report": task_report,
+        "num_composed_samples": sum(s["composed"] for s in samples),
+        "hidden_states": args.hidden_states,
+        "prefill_chunk": args.prefill_chunk,
+        "device_map": args.device_map,
+        "max_memory": args.max_memory,
+        "target_device_map": getattr(target, "hf_device_map", None),
+        "num_devices": torch.cuda.device_count(),
+        "max_position_embeddings": position_limit,
+        "beyond_position_limit": beyond_position_limit,
+        "rope_scaling": None if rope is None else {
+            "target": rope["target"], "draft": rope["draft"]
+        },
         "block_size": block_size,
         "gamma": block_size - 1,
         "num_samples": len(samples),
@@ -536,7 +724,7 @@ def _run_context_length(args: argparse.Namespace) -> None:
         "reasoning": args.reasoning,
         "baseline": args.baseline,
         "profile_draft_memory": args.profile_draft_memory,
-        "device": torch.cuda.get_device_name(device),
+        "device": torch.cuda.get_device_name(0),
         "torch_version": torch.__version__,
         "summary": summaries,
         "samples": per_sample,
@@ -554,7 +742,10 @@ def _run_context_length(args: argparse.Namespace) -> None:
 
 def run(args: argparse.Namespace) -> None:
     if getattr(args, "context_length", None) is not None:
-        _run_context_length(args)
+        if getattr(args, "context_dry_run", False):
+            _run_context_dry_run(args)
+        else:
+            _run_context_length(args)
     elif args.backend == "transformers":
         _run_transformers(args)
     elif args.backend == "mlx":

@@ -123,19 +123,35 @@ dflash benchmark mlx \
 
 ### Context-length sweep
 
-Measures DFlash against a `block_size=1` baseline at a fixed input length.
-Prompts come from [LongBench-E](https://huggingface.co/datasets/THUDM/LongBench),
-the length-balanced split of LongBench, using its official per-task prompt
-templates; each document is middle-truncated so the templated prompt lands
-exactly on `--context-length`. Transformers backend only. `--model-preset`
-fills in a known target/draft pair (`qwen3-8b`, `qwen3.5-9b`);
-`--model`/`--draft` still work for anything else.
+Measures DFlash against a `block_size=1` baseline at a fixed input length, from
+4k to 64k. Prompts come from
+[LongBench](https://huggingface.co/datasets/THUDM/LongBench) using its official
+per-task prompt templates; each document is middle-truncated so the templated
+prompt lands exactly on `--context-length`. Transformers backend only.
+`--model-preset` fills in a known target/draft pair (`qwen3-8b`,
+`qwen3.5-9b`); `--model`/`--draft` still work for anything else.
 
 ```bash
 dflash benchmark transformers \
     --model-preset qwen3.5-9b --context-length 16384 \
     --max-samples 32 --max-new-tokens 512 --reasoning off \
     --profile-draft-memory
+```
+
+At or below 16k this reads LongBench-E, the length-balanced split, one document
+per prompt. Above it LongBench runs out of material — the longest English
+document it ships is a 65301-token NarrativeQA story, and only NarrativeQA has
+more than a handful of documents past 32k — so the harness switches to the full
+split and, for the tasks whose context is a sequence of independent units
+(multi-document QA passages, the synthetic retrieval paragraphs, few-shot
+examples), fills the remaining budget with units drawn from other documents of
+the same task. `--context-split` and `--context-extend` control both, and
+`--context-dry-run` prints what a given length will actually yield without
+touching a GPU:
+
+```bash
+dflash benchmark transformers --model-preset qwen3-8b \
+    --context-length 65536 --max-samples 32 --context-dry-run
 ```
 
 Results are written to `record/<model>_<context-length>_<date>.json`, holding
@@ -145,9 +161,27 @@ per-decode-token latency, throughput, token counts, and memory. The baseline is
 profiled into the same file under its own key, carrying only the metrics that
 apply to it — latency, tokens and memory, but nothing drafter-specific. Add
 `--no-baseline` to skip that run, which halves the runtime but drops the
-speedup number. `--context-task` selects a LongBench-E task (default: every
-English task); the paper's long-context tasks are `hotpotqa`, `qasper` and
+speedup number. `--context-task` selects a task or a group (default: the
+English LongBench-E suite at or below 16k, the subset that can reach the target
+above it); the paper's long-context tasks are `hotpotqa`, `qasper` and
 `gov_report`.
+
+Long contexts are memory-bound on the target's hidden states, not its KV cache.
+DFlash injects a handful of the target's residual streams into the drafter — five
+layers on Qwen3-8B, eight on Qwen3.5-9B — but asking for them with
+`output_hidden_states=True` materialises the whole `L + 1` tuple: 37 tensors on
+Qwen3-8B, 18.5 GB of them at 64k, for 2.5 GB of data the drafter reads. That is
+the reference behaviour and the default (`--hidden-states full`), so records stay
+comparable across the sweep. `--hidden-states selective` hooks only the injected
+layers instead: bit-identical features and identical greedy output, ~8x smaller,
+and enough to put 64k back on a single 48 GB card — but a record made with it
+cannot be compared against one made with `full`.
+
+Peak memory is reported as the largest *simultaneous* allocation, and records
+carry a `peak_site` naming the operation, decode token and drafter step that set
+it. This matters once the target is sharded: summing each device's own maximum
+counts peaks that never coexisted, which over-stated a 32k Qwen3.5-9B run by
+12.3 GB (45.2 against a true 32.9).
 
 See [PROFILING.md](PROFILING.md) for the file-by-file layout, the record
 schema, and per-model run recipes.

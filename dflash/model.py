@@ -43,6 +43,130 @@ def extract_context_feature(
     return torch.cat(selected_states, dim=-1)
 
 
+def _decoder_layers(target: nn.Module, expected: int) -> nn.ModuleList:
+    """The target's decoder layer list, however deeply the wrapper nests it.
+
+    Qwen3 keeps it at ``target.model.layers``; Qwen3.5 wraps a text model in a
+    conditional-generation head, so it sits one level further down. Matching on
+    the expected length rules out a vision tower's own stack.
+    """
+    candidates = [
+        (name, module._modules["layers"])
+        for name, module in target.named_modules()
+        if isinstance(module._modules.get("layers"), nn.ModuleList)
+        and len(module._modules["layers"]) == expected
+    ]
+    if not candidates:
+        raise ValueError(
+            f"Could not find a decoder stack of {expected} layers on "
+            f"{type(target).__name__}"
+        )
+    candidates.sort(key=lambda item: item[0].count("."))
+    return candidates[0][1]
+
+
+class HiddenStateTap:
+    """Capture only the target layers whose output DFlash actually injects.
+
+    ``output_hidden_states=True`` materialises every layer's residual stream —
+    37 tensors of (1, N, 4096) for Qwen3-8B — when the drafter reads five of
+    them. During prefill that is the single largest tensor in the run: ~19 GB at
+    64k input, enough on its own to push an otherwise comfortable run off a 48 GB
+    card. Forward hooks on the wanted layers keep exactly the same tensors and
+    let the rest be freed as the forward walks the stack.
+
+    The tensors captured here are the layer outputs, which is what
+    ``hidden_states[layer_id + 1]`` is. The final entry of ``hidden_states`` is
+    the only one HuggingFace normalises, and ``build_target_layer_ids`` never
+    selects the last layer, so the two paths agree exactly.
+    """
+
+    def __init__(
+        self, target: nn.Module, layer_ids: list[int], num_target_layers: int,
+        device: "torch.device | None" = None,
+    ):
+        self.layers = _decoder_layers(target, num_target_layers)
+        self.layer_ids = list(layer_ids)
+        # With the target sharded across GPUs the wanted layers land on
+        # different devices; gather them where the drafter runs.
+        self.device = device
+        if max(self.layer_ids) >= num_target_layers - 1:
+            raise ValueError(
+                "HiddenStateTap cannot serve the final layer, whose hidden state "
+                "HuggingFace reports after the final norm"
+            )
+        self.captured: dict[int, torch.Tensor] = {}
+        self._handles: list = []
+
+    def _hook(self, layer_id: int):
+        def hook(module, args, output):
+            state = output[0] if isinstance(output, tuple) else output
+            if self.device is not None and state.device != self.device:
+                state = state.to(self.device)
+            self.captured[layer_id] = state
+        return hook
+
+    def __enter__(self) -> "HiddenStateTap":
+        for layer_id in self.layer_ids:
+            self._handles.append(
+                self.layers[layer_id].register_forward_hook(self._hook(layer_id))
+            )
+        return self
+
+    def __exit__(self, *exc) -> None:
+        for handle in self._handles:
+            handle.remove()
+        self._handles.clear()
+        self.captured.clear()
+
+    def states(self) -> list[torch.Tensor]:
+        return [self.captured[layer_id] for layer_id in self.layer_ids]
+
+    def feature(self) -> torch.Tensor:
+        return torch.cat(self.states(), dim=-1)
+
+    def release(self) -> None:
+        """Drop references so the captured activations can be freed."""
+        self.captured.clear()
+
+
+def prefill_chunking_safe(target: nn.Module) -> bool:
+    """Whether slicing the prefill reproduces a single full forward.
+
+    For a full-attention target it does: measured on Qwen3-8B over a 13217-token
+    prompt, chunked and one-shot prefill agree on the next-token argmax at
+    100.000% of positions. A hybrid target does not -- Qwen3.5-9B keeps 24 of
+    its 32 layers on a gated-delta-rule recurrence, and splitting the prefill
+    changes its predictions at ~7% of positions (93.2% agreement at chunk 4096,
+    93.7% at 8192). That is a different model output, not rounding, so chunking
+    is refused there rather than silently distorting acceptance.
+    """
+    config = getattr(target.config, "text_config", None) or target.config
+    layer_types = getattr(config, "layer_types", None)
+    return not layer_types or all(kind == "full_attention" for kind in layer_types)
+
+
+def _target_step(target, tap, layer_ids, want_hidden: bool, **kwargs):
+    """Run the target and hand back the residual streams DFlash injects.
+
+    Returns ``(output, selected, accounted)``: the model output, the wanted
+    layers' hidden states in ``layer_ids`` order, and the tensors to charge to
+    the drafter's hidden-state overhead. Under the tap those two coincide;
+    under ``output_hidden_states`` the target materialised every layer, so the
+    whole tuple is what the run actually paid for.
+    """
+    if not want_hidden:
+        return target(**kwargs, output_hidden_states=False), None, ()
+    if tap is not None:
+        with tap:
+            output = target(**kwargs, output_hidden_states=False)
+            selected = tap.states()
+        return output, selected, selected
+    output = target(**kwargs, output_hidden_states=True)
+    offset = 1
+    return output, [output.hidden_states[i + offset] for i in layer_ids], output.hidden_states
+
+
 def _sampling_probs(
     logits: torch.Tensor,
     temperature: float,
@@ -181,6 +305,150 @@ def _cache_bytes(cache) -> int:
     return total
 
 
+def _all_device_peak(reserved: bool = False) -> int:
+    """Peak CUDA bytes summed over every visible device.
+
+    Identical to the single-device figure when the model sits on one card, and
+    the only meaningful total when the target is sharded across several.
+    """
+    read = (
+        torch.cuda.max_memory_reserved if reserved else torch.cuda.max_memory_allocated
+    )
+    return sum(read(index) for index in range(torch.cuda.device_count()))
+
+
+def _reset_device_peaks() -> None:
+    for index in range(torch.cuda.device_count()):
+        torch.cuda.reset_peak_memory_stats(index)
+
+
+def _device_bytes(index: int, field: str) -> int:
+    """One allocator counter, without the public wrapper's overhead.
+
+    ``torch.cuda.memory_allocated`` and friends rebuild and flatten the entire
+    stats dictionary on every call: 81us measured, against 10us for the raw
+    binding. At one read per decoder layer that difference lands directly in
+    the reported per-token latency, so the fast path is the one that keeps the
+    profiler from changing what it measures.
+    """
+    try:
+        return torch._C._cuda_memoryStats(index)["allocated_bytes"]["all"][field]
+    except (AttributeError, KeyError):  # pragma: no cover - old torch
+        return (
+            torch.cuda.max_memory_allocated(index)
+            if field == "peak"
+            else torch.cuda.memory_allocated(index)
+        )
+
+
+def _all_device_live() -> int:
+    """Bytes live on every visible device right now."""
+    return sum(
+        _device_bytes(index, "current")
+        for index in range(torch.cuda.device_count())
+    )
+
+
+class PeakTracker:
+    """Where the run's peak allocation lands, not just how large it is.
+
+    ``torch.cuda.max_memory_allocated`` is a per-device maximum over the whole
+    run, so summing it across a sharded target adds maxima that never coexisted.
+    Measured on a 32k Qwen3.5-9B prefill split over two cards: device 0 peaks at
+    20.69 GB while running its own layers and has fallen back to 14.29 GB long
+    before device 1 peaks at 24.51, so the naive sum reports 45.20 GB against a
+    true simultaneous 32.91 -- a 12.29 GB (27%) overcount.
+
+    Cutting the run into short intervals fixes it. Within one interval only one
+    device is doing work, so the sum of per-interval device maxima is tight, and
+    the maximum over intervals is what gets reported. On a single device the two
+    agree exactly: a maximum over time is the maximum over any partition of it,
+    so single-GPU figures are unchanged by this.
+
+    Every interval carries the label of the operation running in it plus the
+    decode token and drafter step in flight, so the record says which operation
+    set the peak.
+    """
+
+    def __init__(self, enabled: bool = True):
+        self.enabled = bool(enabled) and torch.cuda.is_available()
+        self.num_devices = torch.cuda.device_count() if self.enabled else 0
+        self.peak_bytes = 0
+        self.peak_site: dict | None = None
+        self.peak_per_device: list[int] = []
+        self._device_maxima = [0] * self.num_devices
+        self._label = "startup"
+        self._site: dict = {}
+        self._decode_token = None
+        self._draft_step = None
+        if self.enabled:
+            _reset_device_peaks()
+
+    def context(self, *, decode_token=None, draft_step=None) -> None:
+        """Name the decode position the following intervals belong to."""
+        self._decode_token = decode_token
+        self._draft_step = draft_step
+
+    def boundary(self, label: str, **site) -> int:
+        """Close the interval that just ran and open one called ``label``.
+
+        Returns the closed interval's peak, which is what the draft-activation
+        probe needs and saves it a second round of resets.
+        """
+        if not self.enabled:
+            return 0
+        per_device = [
+            _device_bytes(index, "peak") for index in range(self.num_devices)
+        ]
+        total = sum(per_device)
+        self._device_maxima = [
+            max(seen, now) for seen, now in zip(self._device_maxima, per_device)
+        ]
+        if total > self.peak_bytes:
+            self.peak_bytes = total
+            self.peak_per_device = per_device
+            self.peak_site = {
+                "operation": self._label,
+                "decode_token": self._decode_token,
+                "draft_step": self._draft_step,
+                **self._site,
+            }
+        _reset_device_peaks()
+        self._label, self._site = label, site
+        return total
+
+    def watch(self, layers) -> list:
+        """Open an interval before every target layer.
+
+        A sharded prefill only attributes its peak correctly if the intervals
+        are short enough that one device is working in each, and one decoder
+        layer is that unit. Pre-hooks rather than post-hooks so the interval
+        contains the layer it is named after.
+        """
+        if not self.enabled:
+            return []
+        def make_hook(index):
+            # A pre-hook that returns anything replaces the layer's arguments,
+            # and boundary() returns the closed interval's size, so swallow it.
+            def hook(module, args):
+                self.boundary(f"target layer {index}", layer=index)
+
+            return hook
+
+        return [
+            layer.register_forward_pre_hook(make_hook(index))
+            for index, layer in enumerate(layers)
+        ]
+
+    def finish(self) -> None:
+        self.boundary("finished")
+
+    @property
+    def sum_of_device_maxima_bytes(self) -> int:
+        """The old, over-counting figure, kept so records stay comparable."""
+        return sum(self._device_maxima)
+
+
 def _tensor_bytes(tensors) -> int:
     """CUDA bytes held by an iterable of tensors, counting each storage once."""
     seen: set[tuple] = set()
@@ -295,16 +563,22 @@ def dflash_generate(
     return_stats: bool = False,
     profile_draft_memory: bool = False,
     profile_draft_latency: bool = True,
+    hidden_states: str = "full",
+    prefill_chunk: int | None = None,
 ):
     _validate_sampling(temperature, top_p, top_k)
     num_input_tokens = input_ids.shape[1]
     max_length = num_input_tokens + max_new_tokens
     block_size = model.block_size if block_size is None else block_size
 
+    # Everything DFlash keeps between steps lives with the drafter. On one GPU
+    # that is the target's device too; on a sharded target it is one shard, and
+    # the boundaries that cross a device are moved explicitly.
+    device = next(model.parameters()).device
     output_ids = torch.full(
-        (1, max_length + 1), model.mask_token_id, dtype=torch.long, device=target.device,
+        (1, max_length + 1), model.mask_token_id, dtype=torch.long, device=device,
     )
-    position_ids = torch.arange(output_ids.shape[1], device=target.device).unsqueeze(0)
+    position_ids = torch.arange(output_ids.shape[1], device=device).unsqueeze(0)
     past_key_values_target = _make_cache(target.config)
     past_key_values_draft = _make_cache(model.config)
 
@@ -317,41 +591,98 @@ def dflash_generate(
     # Both are drafter overhead and neither is charged to the baseline.
     hidden_states_bytes = 0
     context_feature_bytes = 0
+    # Two ways to get the target residual streams the drafter is conditioned
+    # on: ask for all of them, or hook the handful DFlash reads. They agree
+    # exactly, but at 64k input the full tuple is ~19 GB on its own, so the tap
+    # is what keeps a long-context run on one card. See HiddenStateTap.
+    if hidden_states not in ("selective", "full"):
+        raise ValueError(
+            f"Unknown hidden_states mode '{hidden_states}'; use 'selective' or 'full'"
+        )
+    tracker = PeakTracker(bool(return_stats))
+    tap = (
+        HiddenStateTap(
+            target,
+            model.target_layer_ids,
+            int(_draft_value(model.config, "num_target_layers")),
+            device=device,
+        )
+        if block_size > 1 and hidden_states == "selective"
+        else None
+    )
+
+    target_config = getattr(target.config, "text_config", None) or target.config
+    watch_handles = tracker.watch(
+        _decoder_layers(target, target_config.num_hidden_layers)
+    )
 
     prefill_start = _cuda_time() if return_stats else None
-    output = target(
-        input_ids,
-        position_ids=position_ids[:, :num_input_tokens],
-        past_key_values=past_key_values_target,
-        use_cache=True,
-        logits_to_keep=1,
-        output_hidden_states=block_size > 1,
-    )
+    # Prefill in slices when asked. The KV cache carries the sequence forward —
+    # including the recurrent state of a hybrid target — so the result is the
+    # same, but the per-call activation of an attention kernel is bounded by the
+    # chunk rather than the context. Qwen3.5's linear-attention prefill needs
+    # ~14 GB at 32k and twice that at 64k, which is what puts a 64k run off a
+    # 48 GB card long before any of DFlash's own tensors do.
+    if prefill_chunk and not prefill_chunking_safe(target):
+        raise ValueError(
+            "--prefill-chunk is only valid for a full-attention target; this "
+            "one has recurrent layers whose prefill does not reproduce across a "
+            "chunk boundary. See prefill_chunking_safe()."
+        )
+    chunk = prefill_chunk if prefill_chunk else num_input_tokens
+    feature_chunks = []
+    for begin in range(0, num_input_tokens, chunk):
+        end = min(begin + chunk, num_input_tokens)
+        tracker.boundary("prefill: target forward", chunk=begin // chunk)
+        output, selected, accounted = _target_step(
+            target,
+            tap,
+            model.target_layer_ids,
+            block_size > 1,
+            input_ids=input_ids[:, begin:end],
+            position_ids=position_ids[:, begin:end],
+            past_key_values=past_key_values_target,
+            use_cache=True,
+            logits_to_keep=1,
+        )
+        if block_size > 1:
+            hidden_states_bytes = max(hidden_states_bytes, _tensor_bytes(accounted))
+            with context_feature_timer:
+                feature_chunks.append(torch.cat(selected, dim=-1))
+            # The prefill streams are the largest tensors in the run; drop them
+            # the moment this chunk's context feature has been built.
+            selected = accounted = None
 
     output_ids[:, :num_input_tokens] = input_ids
     output_ids[:, num_input_tokens:num_input_tokens + 1] = sample(
         output.logits, temperature, top_p, top_k
     )
     if block_size > 1:
-        hidden_states_bytes = max(
-            hidden_states_bytes, _tensor_bytes(output.hidden_states)
-        )
+        tracker.boundary("prefill: context-feature concat")
         with context_feature_timer:
-            target_hidden = extract_context_feature(
-                output.hidden_states, model.target_layer_ids
+            target_hidden = (
+                feature_chunks[0]
+                if len(feature_chunks) == 1
+                else torch.cat(feature_chunks, dim=1)
             )
+        feature_chunks = None
         context_feature_bytes = max(
             context_feature_bytes, _tensor_bytes([target_hidden])
         )
     _crop_to(past_key_values_target, num_input_tokens)
     time_to_first_token = _cuda_time() - prefill_start if return_stats else None
+    if len({p.device for p in target.parameters()}) < 2:
+        # One device: per-step boundaries already resolve the peak exactly, and
+        # a read per layer per decode step would show up in the reported tpot.
+        for handle in watch_handles:
+            handle.remove()
+        watch_handles = []
 
     decode_start = _cuda_time() if return_stats else None
     acceptance_lengths = []
     accepted_lengths = []
     proposed_lengths = []
     draft_activation_bytes = 0
-    running_peak_bytes = 0
     start = num_input_tokens
     stop_tokens = (
         torch.tensor(stop_token_ids, dtype=output_ids.dtype, device=output_ids.device)
@@ -364,15 +695,12 @@ def dflash_generate(
         verify_size = min(block_size, max_length - start)
         block_output_ids = output_ids[:, start : start + verify_size].clone()
         block_position_ids = position_ids[:, start : start + verify_size]
+        tracker.context(
+            decode_token=start - num_input_tokens, draft_step=len(acceptance_lengths)
+        )
         if verify_size > 1:
-            if profile_draft_memory:
-                # reset_peak_memory_stats clears the run-wide peak, so fold the
-                # value seen so far into a running maximum before each reset.
-                running_peak_bytes = max(
-                    running_peak_bytes, torch.cuda.max_memory_allocated()
-                )
-                before_draft_bytes = torch.cuda.memory_allocated()
-                torch.cuda.reset_peak_memory_stats()
+            before_draft_bytes = _all_device_live() if profile_draft_memory else 0
+            tracker.boundary("decode: draft forward")
             noise_embedding = _raw_input_embeddings(
                 target,
                 block_output_ids,
@@ -387,17 +715,16 @@ def dflash_generate(
                     use_cache=True,
                 )[:, 1 - verify_size :, :]
             _crop_to(past_key_values_draft, start)
+            draft_peak_bytes = tracker.boundary("decode: draft logits")
             if profile_draft_memory:
-                draft_peak_bytes = torch.cuda.max_memory_allocated()
                 # Subtract whatever the call left behind — the first draft call
                 # populates the whole draft KV cache, which is persistent, not
                 # activation. Netting it out keeps this term transient-only so
                 # it does not double-count draft_cache_bytes.
-                resident = max(before_draft_bytes, torch.cuda.memory_allocated())
+                resident = max(before_draft_bytes, _all_device_live())
                 draft_activation_bytes = max(
                     draft_activation_bytes, draft_peak_bytes - resident
                 )
-                running_peak_bytes = max(running_peak_bytes, draft_peak_bytes)
             if isinstance(model, DFlash2DraftModel):
                 draft_tokens, draft_indices, draft_probs = model.propose(
                     draft_hidden,
@@ -407,7 +734,9 @@ def dflash_generate(
                 )
                 block_output_ids[:, 1:] = draft_tokens
             else:
-                draft_logits = model.compute_logits(draft_hidden, _output_head(target))
+                draft_logits = model.compute_logits(
+                    draft_hidden, _output_head(target)
+                ).to(draft_hidden.device)
                 if temperature > 0:
                     draft_probs = _sampling_probs(
                         draft_logits, temperature, top_p, top_k
@@ -416,13 +745,17 @@ def dflash_generate(
                     draft_indices = None
                 else:
                     block_output_ids[:, 1:] = torch.argmax(draft_logits, dim=-1)
+        tracker.boundary("decode: target verify")
         with target_forward_timer:
-            output = target(
-                block_output_ids,
+            output, selected, accounted = _target_step(
+                target,
+                tap,
+                model.target_layer_ids,
+                verify_size > 1,
+                input_ids=block_output_ids,
                 position_ids=block_position_ids,
                 past_key_values=past_key_values_target,
                 use_cache=True,
-                output_hidden_states=verify_size > 1,
             )
 
         if temperature > 0:
@@ -458,16 +791,17 @@ def dflash_generate(
         proposed_lengths.append(verify_size - 1)
 
         if verify_size > 1:
-            hidden_states_bytes = max(
-                hidden_states_bytes, _tensor_bytes(output.hidden_states)
-            )
+            hidden_states_bytes = max(hidden_states_bytes, _tensor_bytes(accounted))
+            tracker.boundary("decode: context-feature concat")
             with context_feature_timer:
-                target_hidden = extract_context_feature(
-                    output.hidden_states, model.target_layer_ids
-                )[:, :produced, :]
+                target_hidden = torch.cat(selected, dim=-1)[:, :produced, :]
             context_feature_bytes = max(
                 context_feature_bytes, _tensor_bytes([target_hidden])
             )
+
+    tracker.finish()
+    for handle in watch_handles:
+        handle.remove()
 
     output_ids = output_ids[:, :min(start + 1, max_length)]
 
@@ -497,8 +831,13 @@ def dflash_generate(
             1 for n in proposed_lengths if n == block_size - 1
         ),
         gamma=block_size - 1,
-        peak_memory_bytes=max(running_peak_bytes, torch.cuda.max_memory_allocated()),
-        peak_memory_reserved_bytes=torch.cuda.max_memory_reserved(),
+        # Interval-resolved: the largest simultaneous total, not the sum of
+        # per-device maxima that never coexisted. See PeakTracker.
+        peak_memory_bytes=tracker.peak_bytes,
+        peak_memory_sum_device_maxima_bytes=tracker.sum_of_device_maxima_bytes,
+        peak_memory_per_device_bytes=tracker.peak_per_device,
+        peak_site=tracker.peak_site,
+        peak_memory_reserved_bytes=_all_device_peak(reserved=True),
         draft_activation_bytes=draft_activation_bytes if profile_draft_memory else None,
         draft_cache_bytes=_cache_bytes(past_key_values_draft),
         target_cache_bytes=_cache_bytes(past_key_values_target),

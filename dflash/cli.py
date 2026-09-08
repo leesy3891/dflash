@@ -61,8 +61,32 @@ def _parser() -> argparse.ArgumentParser:
     )
     benchmark.add_argument(
         "--context-task",
-        help="LongBench-E task to run (default: all). The paper's long-context "
-        "tasks are hotpotqa, qasper and gov_report; a comma-separated list also works",
+        help="LongBench task to run (default: the LongBench-E English suite at "
+        "or below 16k, the reachable long-context subset above it). Accepts a "
+        "task name, a comma-separated list, or a group: all-e, all-en, paper, "
+        "long. The paper's long-context tasks are hotpotqa, qasper and gov_report",
+    )
+    benchmark.add_argument(
+        "--context-split",
+        choices=("auto", "e", "full"),
+        default="auto",
+        help="LongBench split to draw from. auto uses LongBench-E at or below "
+        "16k and the full split above it, where the long documents are",
+    )
+    benchmark.add_argument(
+        "--context-extend",
+        choices=("auto", "on", "off"),
+        default="auto",
+        help="Reach the target length by appending units from other documents "
+        "of the same task, for the tasks whose context is a sequence of "
+        "passages, paragraphs or few-shot examples. auto turns this on above "
+        "16k, past which LongBench has no documents long enough",
+    )
+    benchmark.add_argument(
+        "--context-dry-run",
+        action="store_true",
+        help="Build the prompts, print the per-task feasibility table and exit "
+        "without loading either model",
     )
     benchmark.add_argument(
         "--record-dir",
@@ -74,6 +98,58 @@ def _parser() -> argparse.ArgumentParser:
         dest="baseline",
         action="store_false",
         help="Skip the block_size=1 run, halving runtime but dropping speedup",
+    )
+    benchmark.add_argument(
+        "--rope-scaling",
+        choices=("none", "yarn"),
+        default="none",
+        help="Widen RoPE on target and draft alike so a context past the "
+        "model's trained window is interpolated rather than extrapolated. "
+        "Qwen3-8B stops at 40960 positions, so 64k needs this",
+    )
+    benchmark.add_argument(
+        "--rope-factor",
+        type=float,
+        help="RoPE scaling factor (default: the smallest power of two that "
+        "covers --context-length plus --max-new-tokens)",
+    )
+    benchmark.add_argument(
+        "--rope-original-max",
+        type=int,
+        help="Positions the model was trained to, the denominator of the "
+        "scaling factor (default: its own max_position_embeddings)",
+    )
+    benchmark.add_argument(
+        "--device-map",
+        help="Shard the target across the visible GPUs (e.g. 'auto', 'balanced'); "
+        "needs `pip install accelerate`. Buys headroom for the prefill "
+        "activation at long context; per-token latency then reflects "
+        "pipeline-parallel execution, so compare acceptance across sharded and "
+        "single-GPU runs but not timings",
+    )
+    benchmark.add_argument(
+        "--max-memory",
+        help="Per-GPU weight budget for --device-map, e.g. '0=20GiB,1=32GiB'. "
+        "Default: each card's currently free memory less 2 GiB, so a shared "
+        "machine is not handed a GPU someone else is using",
+    )
+    benchmark.add_argument(
+        "--prefill-chunk",
+        type=int,
+        help="Prefill the target in slices of this many tokens. Bounds the "
+        "prefill activation peak, which for a hybrid target like Qwen3.5-9B is "
+        "the largest term at long context. Default: one shot",
+    )
+    benchmark.add_argument(
+        "--hidden-states",
+        choices=("full", "selective"),
+        default="full",
+        help="How the drafter gets the target's residual streams. full is the "
+        "reference behaviour -- output_hidden_states=True materialises all L+1 "
+        "layers (37 on Qwen3-8B, 33 on Qwen3.5-9B) though only 5 and 8 are "
+        "injected -- and is what every record in the sweep is measured with. "
+        "selective hooks just the injected layers: bit-identical, ~8x smaller, "
+        "but not comparable against a full-mode record",
     )
     benchmark.add_argument(
         "--profile-draft-memory",

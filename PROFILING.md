@@ -27,7 +27,15 @@ dflash benchmark transformers --model-preset <name> --context-length <N> [option
 | `--max-samples` | Prompts to run (default 32). |
 | `--max-new-tokens` | Decode cap per prompt. Keep it at 256+ so per-token latency is not dominated by prefill. |
 | `--reasoning` | `off`/`on`, or a model-specific level. **Set this deliberately** — see Caveats. |
-| `--context-task` | LongBench-E task to run. Default (and `all`): every English task. The paper's long-context tasks are `hotpotqa`, `qasper`, `gov_report`; a comma-separated list also works. |
+| `--context-task` | Task to run. Default (and `all`): the LongBench-E English suite at or below 16k, `long` above it. Accepts a task name, a comma-separated list, or a group (`all-e`, `all-en`, `paper`, `long`). The paper's long-context tasks are `hotpotqa`, `qasper`, `gov_report`. |
+| `--context-split` | `auto` (default), `e`, `full`. `auto` reads LongBench-E at or below 16k and the full split above it. |
+| `--context-extend` | `auto` (default), `on`, `off`. Whether a task whose context is a sequence of units may borrow units from other documents of the same task to reach the target. `auto` means on above 16k. |
+| `--context-dry-run` | Fit the prompts, print the feasibility table, exit. Loads the tokenizer only, no GPU. |
+| `--hidden-states` | `full` (default) or `selective`. How the target's residual streams reach the drafter — see *Hidden states: how many layers are actually resident* below. |
+| `--prefill-chunk` | Prefill the target in slices of this many tokens. Full-attention targets only; refused on a hybrid one — see *Chunked prefill*. |
+| `--device-map` | Shard the target across the visible GPUs (`auto`, `balanced`); requires `accelerate`. Buys prefill headroom; makes timings pipeline-parallel. |
+| `--max-memory` | Per-GPU weight budget for `--device-map`, e.g. `0=20GiB,1=32GiB`. Defaults to each card's *free* memory less 2 GiB, so a shared machine is not handed a card someone else is using. |
+| `--rope-scaling` | `none` (default) or `yarn`. Widens RoPE on target *and* draft so a context past the trained window is interpolated. Qwen3-8B needs it at 64k. |
 | `--no-baseline` | Skip the `block_size=1` run. Halves runtime, drops the speedup number. |
 | `--profile-draft-memory` | Also measure the drafter's activation peak. Perturbs latency slightly; leave off when timing is the point. |
 | `--record-dir` | Output directory (default `record`). |
@@ -43,6 +51,210 @@ accepted within ±16 tokens otherwise. Documents too short to reach the target
 are skipped and reported. Sample selection is seeded, so a repeated run at the same context
 length uses the same prompts.
 
+## Reaching 32k and 64k
+
+LongBench caps its own documents, and the cap is well under 64k. Measured with
+the Qwen3-8B tokenizer over every English task, counting documents whose
+`context` field alone clears each target (the templated prompt needs a few
+hundred tokens more):
+
+| Task | split | n | p50 | max | >=16k | >=32k | >=64k |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| narrativeqa | full | 200 | 31296 | 65301 | 139 | **85** | 0 |
+| gov_report | full | 200 | 8902 | 52521 | 27 | 3 | 0 |
+| gov_report | e | 300 | 7185 | 28575 | 32 | 0 | 0 |
+| qmsum | full | 200 | 12970 | 30377 | 52 | 0 | 0 |
+| musique | full | 200 | 16733 | 17824 | 151 | 0 | 0 |
+| hotpotqa | full | 200 | 14982 | 17578 | 63 | 0 | 0 |
+| 2wikimqa | e | 300 | 8160 | 17169 | 27 | 0 | 0 |
+| multifieldqa_en | full | 150 | 7368 | 16446 | 1 | 0 | 0 |
+| qasper | e | 224 | 5604 | 21879 | 14 | 0 | 0 |
+| triviaqa | e | 300 | 8289 | 36186 | 44 | 1 | 0 |
+| trec | e | 300 | 7974 | 17328 | 17 | 0 | 0 |
+| samsum | e | 300 | 9062 | 18191 | 7 | 0 | 0 |
+| passage_count | full | 200 | 15822 | 29538 | 91 | 0 | 0 |
+| passage_retrieval_en | full | 200 | 12581 | 15344 | 0 | 0 | 0 |
+| multi_news | e | 294 | 6728 | 41048 | 23 | 4 | 0 |
+| lcc | e | 300 | 13178 | 57962 | 122 | 10 | 0 |
+| repobench-p | e | 300 | 12715 | 40567 | 115 | 11 | 0 |
+
+So, naturally: **32k is NarrativeQA and little else** (85 documents, then a
+long tail of 3-11 from gov_report, multi_news, LCC and RepoBench-P), and **64k
+is nothing at all** — the longest English document in LongBench is a 65301-token
+NarrativeQA story, 235 tokens short of 64Ki.
+
+Above 16k the harness therefore does two things, both on by default and both
+recorded in the output file:
+
+1. **Reads the full split rather than LongBench-E** (`--context-split`), because
+   that is where the long documents are. NarrativeQA, MuSiQue and QMSum only
+   exist there at all.
+2. **Composes** (`--context-extend`), for the tasks whose context is a sequence
+   of independent units: multi-document QA (`Passage N:` blocks), the synthetic
+   retrieval tasks (`Paragraph N:` lines), and the few-shot tasks (one example
+   per unit). Units from *other* documents of the same task are drawn in, the
+   document's own units are scattered among them rather than left in a block at
+   the head, numbered markers are renumbered to run 1..N, and the tail is
+   trimmed so the prompt lands on the target. `passage_retrieval_en` also
+   switches to a prompt that states the real paragraph count instead of
+   LongBench's hardcoded "30".
+
+`samples[].composed` records which prompts were built this way, and
+`context_task_report` holds the per-task natural/composed/skipped breakdown.
+
+Composition is a length stressor, not a scoring harness: this benchmark never
+scores an answer, and a composed `passage_count` prompt has a different unique-
+paragraph count from the one LongBench labelled. What it does preserve is the
+shape of the task at the target length — the model still has to find evidence
+scattered through 64k of same-genre distractors.
+
+Check what a length will actually yield before spending a GPU on it:
+
+```bash
+dflash benchmark transformers --model-preset qwen3-8b \
+    --context-length 65536 --max-samples 32 --context-dry-run
+```
+
+## Hidden states: how many layers are actually resident
+
+DFlash conditions the drafter on a handful of the target's residual streams, but
+the reference implementation keeps all of them alive to get there. In
+`dflash_generate` the target is called with `output_hidden_states=block_size > 1`
+and `extract_context_feature` then indexes the layers it wants out of the
+returned tuple — so every layer is materialised and most are discarded:
+
+| Preset | decoder layers | tuple returned | injected (`target_layer_ids`) | used |
+| --- | ---: | ---: | --- | ---: |
+| Qwen3-8B | 36 | 37 | `[1, 9, 17, 25, 33]` → 5 | 13.5% |
+| Qwen3.5-9B | 32 | 33 | `[1, 5, 9, 13, 17, 21, 25, 29]` → 8 | 24.2% |
+
+The tuple is `L + 1` tensors of `(1, S, d)` — the embedding output plus one per
+layer. At `S = 65536` that is 18.5 GiB on Qwen3-8B where the drafter needs 2.5,
+and on a 48 GB card it is the single reason a 64k run does not fit.
+
+**`full` is the default** because it is what the reference implementation does
+and what every record in the context sweep is measured with. Do not mix modes
+within a sweep: `max_target_hidden_states_gb` counts `L + 1` layers under `full`
+and `len(target_layer_ids)` under `selective`, so the same run reports an
+eight-fold difference in that term for reasons that have nothing to do with
+context length.
+
+`--hidden-states selective` registers forward hooks on just the
+wanted layers instead, so the rest are freed as the forward walks the stack.
+The captured tensors are the same ones — `hidden_states[i + 1]` is the output of
+layer `i` — and `build_target_layer_ids` never selects the last layer, the only
+entry HuggingFace normalises before reporting. Verified on both presets: the
+context feature is bit-identical, and greedy generation returns the same token
+ids and the same acceptance lengths.
+
+What changes is `max_target_hidden_states_gb`, which now reports what the run
+actually paid rather than the full tuple:
+
+| Preset | mode | `max_target_hidden_states_gb` at 1.2k |
+| --- | --- | --- |
+| qwen3-8b | full | 0.344 |
+| qwen3-8b | selective | 0.046 |
+| qwen3.5-9b | full | 0.306 |
+| qwen3.5-9b | selective | 0.074 |
+
+Records carry a `hidden_states` field so the two are never compared by accident.
+
+One consequence worth knowing when reading `peak_site`: under `full` the peak
+moves out of prefill. The `output` object holding the whole tuple stays
+referenced through the first decode iteration, so the peak lands at
+`decode: draft forward, decode token 0` rather than at the last prefill layer,
+where `selective` puts it.
+
+## Where the peak lands
+
+`torch.cuda.max_memory_allocated` is a per-device maximum over the whole run.
+Summing it across a sharded target adds maxima that never coexisted. Measured on
+a 32k Qwen3.5-9B prefill split over two cards, sampling both devices at every
+decoder layer:
+
+```
+per-device peak                     dev0 20.69 | dev1 24.51
+sum of per-device peaks             45.20 GB     <- what used to be reported
+max over time of (dev0 + dev1) live 32.91 GB     <- the real footprint
+over-count                          12.29 GB  (27%)
+```
+
+Device 0 peaks while running its own layers and has fallen back to 14.29 GB long
+before device 1 peaks. `PeakTracker` fixes this by cutting the run into short
+intervals: within one interval only one device is doing work, so the sum of
+per-interval device maxima is tight, and the maximum over intervals is reported.
+On a single device the two agree exactly — a maximum over time is the maximum
+over any partition of it — so **single-GPU records are unchanged**, and the
+32768/65536 sharded figures published before this fix are over-counts.
+
+Intervals are bounded at each drafter and target operation, and additionally at
+every decoder layer during prefill. Layer-level bounds stay on through decode
+only when the target is sharded, where the timings are pipeline-parallel and not
+comparable to a single-GPU run anyway.
+
+Each interval carries the operation name plus the decode token and drafter step
+in flight, so `peak_site` says where the peak came from:
+
+```
+Peak memory (allocated / reserved)      25.36 / 27.09 GB
+Peak hit at                             decode: draft forward, decode token 0, drafter step 0 (sample 1)
+```
+
+The tracker reads the allocator through `torch._C._cuda_memoryStats` rather than
+`torch.cuda.memory_allocated`: the public wrapper rebuilds and flattens the whole
+stats dict on every call, 81 us against 10 us measured, which at one read per
+decoder layer would land in the per-token latency it is meant to measure. A/B
+over 512 generated tokens: 32.700 ms/token with the tracker off, 32.610 with it
+on.
+
+## Chunked prefill, and where it is valid
+
+`--prefill-chunk N` feeds the target its prompt in slices, so an attention
+kernel's activation is bounded by the chunk instead of the context. It exists
+because at long context the prefill activation, not the KV cache, is the largest
+term: at 32k the Qwen3.5-9B **baseline** — which never touches the drafter —
+already peaks at 38.8 GB while every tensor the record accounts for sums to
+~27 GB. The missing ~14 GB is `torch_chunk_gated_delta_rule`, the pure-PyTorch
+fallback for Qwen3.5's linear attention, which casts q/k/v/beta/g to float32 and
+materialises them at full sequence length.
+
+It is only valid for a **full-attention** target, and the harness refuses it
+otherwise. Measured over a 13217-token prompt, comparing chunked against
+one-shot prefill on the target's own next-token argmax at every position:
+
+| Target | chunk 4096 | chunk 8192 |
+| --- | --- | --- |
+| Qwen3-8B (36 full-attention layers) | **100.000%** | **100.000%** |
+| Qwen3.5-9B (24 of 32 layers recurrent) | 93.191% | 93.690% |
+
+So for Qwen3-8B chunking is exact where it counts, and for Qwen3.5-9B it changes
+what the model predicts at roughly one position in fourteen — the drafter is
+conditioned on those residual streams, so a chunked run there would report an
+acceptance length for a model that was never actually evaluated. Comparing raw
+hidden states instead of predictions is misleading in both directions: Qwen3's
+massive-activation dimensions carry values in the thousands, so a single
+position can show a cosine similarity of 0.32 while every prediction still
+agrees.
+
+Qwen3.5-9B at 64k therefore needs the memory from somewhere else. Two ways out,
+neither free:
+
+* `--device-map balanced` shards the target over several GPUs (needs
+  `pip install accelerate`; it only places modules and adds device hooks, so no
+  kernel and no arithmetic changes). Verified on Qwen3.5-9B: sharded and
+  single-GPU runs return **identical token ids and identical mean acceptance**
+  (6.300 vs 6.300) at both `block_size` 1 and 16, so **acceptance length stays
+  comparable** with the single-GPU rows — but the forward now crosses a device boundary mid-stack, so
+  `mean_ttft_s`, `aggregate_time_per_output_token_s` and
+  `decode_throughput_tok_s` are pipeline-parallel figures and must not be read
+  against single-GPU ones. Records carry `device_map`, `target_device_map` and
+  `num_devices` so a sharded run is never mistaken for a single-card one, and
+  the memory counters sum over every device rather than reporting card 0.
+* Installing the `kernels` package lets transformers fetch the `fla` Triton
+  kernel instead of the fp32 fallback, which removes the problem outright — at
+  the cost of running 64k on a different linear-attention kernel from the rest
+  of the sweep.
+
 ## Output
 
 One JSON file per run at `record/<model>_<context-length>_<date>.json`, e.g.
@@ -53,6 +265,9 @@ One JSON file per run at `record/<model>_<context-length>_<date>.json`, e.g.
   "git_commit": "07ebd93",
   "model": "Qwen/Qwen3.5-9B", "draft": "z-lab/Qwen3.5-9B-DFlash",
   "context_length": 4096, "context_tasks": ["gov_report", ...],
+  "context_split": "auto", "context_extend": false,
+  "context_task_report": { "gov_report": {"natural": 3, "composed": 0, "skipped": 1, ...}, ... },
+  "num_composed_samples": 0, "hidden_states": "selective",
   "block_size": 16, "gamma": 15,
   "max_new_tokens": 256, "temperature": 0.0, "reasoning": "off",
   "device": "NVIDIA RTX A6000", "torch_version": "2.13.0+cu129",
@@ -63,6 +278,7 @@ One JSON file per run at `record/<model>_<context-length>_<date>.json`, e.g.
   },
   "decoding_speedup": 2.43,
   "samples": [ { "index": 0, "task": "gov_report",
+                 "split": "e", "composed": false,
                  "dflash": {...}, "baseline": {...} }, ... ]
 }
 ```
@@ -78,7 +294,9 @@ One JSON file per run at `record/<model>_<context-length>_<date>.json`, e.g.
 | `aggregate_time_per_output_token_s` | Decode time over decode tokens, pooled across samples. The headline per-token latency. |
 | `mean_time_per_output_token_s` | Same quantity averaged per sample rather than pooled. |
 | `decode_throughput_tok_s` | Reciprocal of the aggregate figure. |
-| `peak_memory_gb` | `torch.cuda.max_memory_allocated`, reset before each sample — what live tensors occupy. |
+| `peak_memory_gb` | Largest **simultaneous** allocation across devices — see *Where the peak lands* below. On one GPU this is exactly `torch.cuda.max_memory_allocated`. |
+| `peak_site` | Which operation set that peak: `operation`, `decode_token`, `draft_step`, `layer`, the `sample` it came from, and `per_device_gb`. |
+| `peak_memory_sum_device_maxima_gb` | The naive figure — per-device maxima summed regardless of whether they coexisted. Equal to `peak_memory_gb` on one device; larger when sharded, and the gap is pure over-count. |
 | `peak_memory_reserved_gb` | `torch.cuda.max_memory_reserved` — what the caching allocator holds. This is the number to compare against `nvidia-smi`, which additionally includes the CUDA context (a few hundred MB). |
 | `max_target_cache_gb` | Largest target KV cache observed. |
 
@@ -202,22 +420,52 @@ CUDA_VISIBLE_DEVICES=1 dflash benchmark transformers \
     --profile-draft-memory
 ```
 
-Repeat with `--context-length 8192` and `16384` for the sweep. Runs are
-independent, so the two models can occupy different GPUs at the same time.
-Budget roughly 20-25 minutes per (model, context length) at 32 samples and 512
-new tokens with the baseline enabled.
+Repeat with `--context-length 8192`, `16384`, `32768` and `65536` for the
+sweep. Runs are independent, so the two models can occupy different GPUs at the
+same time. Budget roughly 20-25 minutes per (model, context length) at 4k-16k
+with 32 samples, 512 new tokens and the baseline enabled; 32k is about twice
+that and 64k about four times.
 
 To run a full sweep unattended and keep the logs:
 
 ```bash
 mkdir -p logs
-for L in 4096 8192 16384; do
+for L in 4096 8192 16384 32768 65536; do
     CUDA_VISIBLE_DEVICES=0 dflash benchmark transformers \
         --model-preset qwen3-8b --context-length $L \
         --max-samples 32 --max-new-tokens 512 --reasoning off \
         > logs/qwen3-8b_$L.log 2>&1
 done
 ```
+
+### What each length needs
+
+Peak allocated memory, 32 samples, `--profile-draft-memory` off, at the default
+`--hidden-states full`. 4k-16k are measured. 32k and 64k are projected from the
+16k records plus the `L + 1` hidden-state term for that length, and are being
+re-measured by `queue/run_full_sweep.sh`.
+
+| Context | qwen3-8b | qwen3.5-9b | Fits a 48 GB A6000 |
+| --- | --- | --- | --- |
+| 4k | 19 GB | 23 GB | yes |
+| 8k | 21 GB | 26 GB | yes |
+| 16k | 25 GB | 33 GB | yes |
+| 32k | ~34 GB | ~47 GB | 8b yes; 9b marginal, shard it |
+| 64k | ~51 GB | ~67 GB | no — two cards for both |
+
+The 32k/64k rows are dominated by the hidden-state tuple: 9.25 / 18.5 GiB on
+qwen3-8b and 8.25 / 16.5 GiB on qwen3.5-9b. `--hidden-states selective` removes
+roughly seven eighths of that and puts every row back on one card, at the cost of
+producing a record that is not comparable with the rest of the sweep.
+
+**Qwen3-8B cannot honestly be run at 64k.** Its
+`max_position_embeddings` is 40960, and the DFlash draft checkpoint inherits the
+same value. Nothing raises an error — RoPE happily extrapolates — but positions
+past 40960 are outside what either model was trained on, so both the target's
+output and the drafter's agreement with it are extrapolation artifacts rather
+than a measurement of DFlash at 64k. Running it needs YaRN on the target *and*
+the draft, which is a different experiment. Qwen3.5-9B has
+`max_position_embeddings = 262144` and is unaffected.
 
 ## Checking progress
 
@@ -249,6 +497,21 @@ print(d['model_name'], d['context_length'],
 ```
 
 ## Caveats
+
+**Decode-side numbers do not cross the 16k/32k boundary.** Mean output length
+collapses there — 218 tokens at 16k to 12 at 32k for Qwen3-8B, 246 to 24 for
+Qwen3.5-9B — and it is the task mix, not the models. Above 16k the only tasks
+that reach the target are short-answer ones (HotpotQA, MuSiQue, PassageCount,
+PassageRetrieval, TREC, TriviaQA, SAMSum; `max_gen` 32-128), while 4k-16k still
+had GovReport, MultiNews and Qasper at `max_gen` 512. With a dozen decode steps
+per sample, `aggregate_time_per_output_token_s`, `decode_throughput_tok_s` and
+`decoding_speedup` are dominated by the first few steps and are not comparable
+with the shorter lengths. `mean_acceptance_length`, `acceptance_rate` and every
+memory figure are unaffected and do compare.
+
+The `record/narrativeqa/` runs are the one place this does not bite at 32k:
+NarrativeQA is the only task with enough documents past 32k to fill a run
+naturally, so those records are 32 real documents with no composition.
 
 **`--reasoning` changes the result.** Both drafts here are non-thinking
 checkpoints, and Qwen3-8B defaults to thinking on. Leaving it unset also changes
