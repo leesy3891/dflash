@@ -7,3 +7,4 @@ cache/
 .ruff_cache/
 build/
 dist/
+__pycache__/
