@@ -163,7 +163,14 @@ One consequence worth knowing when reading `peak_site`: under `full` the peak
 moves out of prefill. The `output` object holding the whole tuple stays
 referenced through the first decode iteration, so the peak lands at
 `decode: draft forward, decode token 0` rather than at the last prefill layer,
-where `selective` puts it.
+where `selective` puts it. That second copy is why the 8B's 64k peak falls by 27
+GB when only 16 GB of it is the tuple itself.
+
+**Both modes have now been swept 4k-64k**, `record/` against `record_selective/`,
+and they agree on everything that is being measured: identical mean acceptance
+length and identical mean output tokens at all ten points. Use `selective` for
+new work — it is the same experiment on a third of the memory — and read the two
+directories separately, never interleaved. See *What each length needs* below.
 
 ## Where the peak lands
 
@@ -295,7 +302,10 @@ One JSON file per run at `record/<model>_<context-length>_<date>.json`, e.g.
 | `mean_time_per_output_token_s` | Same quantity averaged per sample rather than pooled. |
 | `decode_throughput_tok_s` | Reciprocal of the aggregate figure. |
 | `peak_memory_gb` | Largest **simultaneous** allocation across devices — see *Where the peak lands* below. On one GPU this is exactly `torch.cuda.max_memory_allocated`. |
-| `peak_site` | Which operation set that peak: `operation`, `decode_token`, `draft_step`, `layer`, the `sample` it came from, and `per_device_gb`. |
+| `peak_site` | Which operation set that peak: `operation`, `decode_token`, `draft_step`, `layer`, `chunk`, the `sample` it came from, and `per_device_gb`. The decode position is the one the interval *opened* at, so an interval that began in prefill is never labelled with a decode token. |
+| `peak_site_histogram` | How many samples each operation set the peak for. One prompt's peak site can be an accident of where it stopped; the distribution says whether an operation is really the high-water mark. Every run in the selective sweep is unanimous (32/32 at the last prefill layer). |
+| `target_weight_gb` | The target's own parameters and buffers, `module_bytes(target)`. Recorded for both configurations — the baseline pays it too. |
+| `memory_budget` | The peak split into named terms plus what is left: `resident_total_gb` is their sum, `transient_gb` is `peak_memory_gb - resident_total_gb`. See *Where the peak goes*. |
 | `peak_memory_sum_device_maxima_gb` | The naive figure — per-device maxima summed regardless of whether they coexisted. Equal to `peak_memory_gb` on one device; larger when sharded, and the gap is pure over-count. |
 | `peak_memory_reserved_gb` | `torch.cuda.max_memory_reserved` — what the caching allocator holds. This is the number to compare against `nvidia-smi`, which additionally includes the CUDA context (a few hundred MB). |
 | `max_target_cache_gb` | Largest target KV cache observed. |
@@ -353,9 +363,32 @@ d_head=128, n_inj=5`, draft `P = 1.049e9` params):
 | `max_context_feature_gb` | :343, :468 | `S · (n_inj · d) · p` | 0.313 GiB | 0.31 |
 
 The two KV-cache rows use the running sequence length (`S` plus tokens generated
-so far), and a sliding-window draft layer caps its own contribution at the window
-rather than `S` — which is why the Qwen3.5-9B draft cache stays nearly flat as
-context grows while the Qwen3-8B one scales linearly.
+so far). Both scale linearly with `S`, the Qwen3.5-9B draft included — its
+sliding-window layers do **not** cap the recorded figure, and the reason is
+worth knowing.
+
+Five of the six Qwen3.5-9B draft layers are `sliding_attention` with a 4096
+window, so in steady state they should stop growing. `_make_cache` calls
+`activate_past_recording()` so the cache can be rolled back after a rejected
+block, and under that flag `DynamicSlidingWindowLayer.update()` stores the whole
+concatenation while `crop()` re-points `self.keys` at a **view** of the last
+`sliding_window - 1` positions. `_cache_bytes` counts `untyped_storage()`, and
+that is the honest reading: the base storage cannot be freed while a view of it
+is alive. Reproduced on CPU with the same cache classes at `S = 32768`:
+
+| | all six layers | `_cache_bytes` |
+| --- | --- | --- |
+| first draft call | 32784-token storage | **0.750 GiB** |
+| every later call | 4119 on the sliding five, 32800 on the full one | 0.204 GiB |
+
+`max_draft_cache_gb` reads the cache once, when a sample ends, and takes the max
+over samples — so it is set by whichever samples stopped after a single verify
+step. That shows up directly in the per-sample values: at 32k the largest three
+are all 0.750 GiB from 1-step samples while the smallest is 0.203, and at 64k
+1.500 against 0.328. Qwen3-8B, whose five draft layers are all full attention,
+has no such spread (0.625 vs 0.626). So the recorded number is a real peak —
+every sample passes through it on its first draft call — but the steady-state
+residency of the 9B draft cache is roughly 3.7x lower.
 
 `max_target_hidden_states_gb` is the `L_t + 1` hidden states the target must emit
 (`output_hidden_states=True`) purely so DFlash can build its injected feature,
@@ -438,25 +471,101 @@ for L in 4096 8192 16384 32768 65536; do
 done
 ```
 
+The selective sweep in `record_selective/` was produced by two scripts, which
+between them handle GPU assignment and the one length that still needs sharding:
+
+```bash
+# 4k-32k: one dedicated card per preset, the two presets in parallel.
+# Args are <gpu for 8b> <gpu for 9b> <spare, used only to retry an OOM>.
+./queue/run_selective_sweep.sh 0 2 3
+
+# 64k: 8B alone on the spare card (selective makes one card enough), then 9B
+# on two once the first phase drains. Arg is the card to start 8B on.
+./queue/run_selective_64k.sh 3
+```
+
+Both append to `queue/selective.log`, so `tail -f queue/selective.log` follows
+the whole thing. A card is only taken when `nvidia-smi` lists no compute process
+on it and it holds under 100 MiB, so neither script lands on a GPU someone else
+is using.
+
 ### What each length needs
 
-Peak allocated memory, 32 samples, `--profile-draft-memory` off, at the default
-`--hidden-states full`. 4k-16k are measured. 32k and 64k are projected from the
-16k records plus the `L + 1` hidden-state term for that length, and are being
-re-measured by `queue/run_full_sweep.sh`.
+Peak allocated memory, 32 samples, `--profile-draft-memory` off. Both columns
+are measured: `record/` for `full`, `record_selective/` for `selective`. A
+starred figure is a sharded run, where the peak is the largest *simultaneous*
+total across cards and the timings are pipeline-parallel.
 
-| Context | qwen3-8b | qwen3.5-9b | Fits a 48 GB A6000 |
-| --- | --- | --- | --- |
-| 4k | 19 GB | 23 GB | yes |
-| 8k | 21 GB | 26 GB | yes |
-| 16k | 25 GB | 33 GB | yes |
-| 32k | ~34 GB | ~47 GB | 8b yes; 9b marginal, shard it |
-| 64k | ~51 GB | ~67 GB | no — two cards for both |
+| Context | qwen3-8b full | qwen3-8b selective | qwen3.5-9b full | qwen3.5-9b selective |
+| --- | --- | --- | --- | --- |
+| 4k | 19.26 | **18.34** | 22.51 | **21.82** |
+| 8k | 21.29 | **19.47** | 25.87 | **24.49** |
+| 16k | 25.36 | **21.73** | 32.59 | **29.84** |
+| 32k | 33.49 | **26.23** | 49.91 \* (2 GPU) | **40.54** (1 GPU) |
+| 64k | 62.26 \* (2 GPU) | **35.25** (1 GPU) | 87.17 \* (3 GPU) | **62.45** \* (2 GPU) |
 
-The 32k/64k rows are dominated by the hidden-state tuple: 9.25 / 18.5 GiB on
-qwen3-8b and 8.25 / 16.5 GiB on qwen3.5-9b. `--hidden-states selective` removes
-roughly seven eighths of that and puts every row back on one card, at the cost of
-producing a record that is not comparable with the rest of the sweep.
+Selective changes nothing that is being measured — mean acceptance length and
+mean output tokens are identical at all ten points — and it removes the
+hidden-state term exactly: `(L_t + 1 - n_inj) · d · p` per token, 256 KiB on the
+8B and 200 KiB on the 9B. So the saving in `draft_overhead_gb` doubles with the
+context and matches arithmetic to two decimals:
+
+| Context | 8b overhead full → selective | saved | 9b overhead full → selective | saved |
+| --- | --- | ---: | --- | ---: |
+| 4k | 3.35 → 2.35 | 1.00 | 3.78 → 3.00 | 0.78 |
+| 8k | 4.74 → 2.74 | 2.00 | 5.16 → 3.59 | 1.57 |
+| 16k | 7.53 → 3.53 | 4.00 | 7.91 → 4.78 | 3.13 |
+| 32k | 13.08 → 5.08 | 8.00 | 13.41 → 7.16 | 6.25 |
+| 64k | 24.21 → 8.21 | 16.00 | 24.41 → 11.91 | 12.50 |
+
+Three runs drop a card. **Qwen3-8B at 64k falls 62.26 → 35.25 GB**, which is 27
+GB against the 16 GB the hidden term alone accounts for: under `full` the
+`output` object holding the whole tuple stays referenced into the first decode
+step, so a second copy is live at the peak, and it goes away with the first.
+Qwen3.5-9B fits one card at 32k and two at 64k.
+
+Do not read a `full` row against a `selective` one for anything but memory, and
+do not read timings across a change in device count — see the 9B 32k row, whose
+speedup reads 1.61 sharded and 1.36 on one card because the *baseline* was the
+half that gained.
+
+### Where the peak goes
+
+`memory_budget` splits the peak into named resident terms and the rest. Every
+term is a max over samples of something resident for the whole run, so the sum
+is an upper bound on the resident part rather than a simultaneous reading; the
+remainder, `transient_gb`, is what the run borrowed on top — attention
+workspaces, logits, and under `full` the duplicated hidden-state tuple.
+
+The baseline lists the draft weights separately, as loaded-but-unused: the
+drafter sits on the same device for the whole benchmark even while
+`block_size=1` never calls it. Without that line the baseline's transient term
+absorbs ~2 GB of weights and stops being comparable with DFlash's, and it is
+also why a DFlash-minus-baseline peak delta understates the drafter's cost.
+
+Measured, selective, DFlash configuration (GB):
+
+| | 4k | 16k | 64k | | 4k | 16k | 64k |
+| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |
+| **qwen3-8b** | | | | **qwen3.5-9b** | | | |
+| target weights | 15.26 | 15.26 | 15.26 | | 16.68 | 16.68 | 16.68 |
+| target KV cache | 0.63 | 2.32 | 9.07 | | 0.19 | 0.57 | 2.07 |
+| draft weights | 1.95 | 1.95 | 1.95 | | 2.41 | 2.41 | 2.41 |
+| draft KV cache | 0.09 | 0.32 | 1.26 | | 0.10 | 0.38 | 1.50 |
+| target hidden states | 0.16 | 0.63 | 2.50 | | 0.25 | 1.00 | 4.00 |
+| injected context feature | 0.16 | 0.63 | 2.50 | | 0.25 | 1.00 | 4.00 |
+| resident subtotal | 18.24 | 21.10 | 32.54 | | 19.88 | 22.03 | 30.65 |
+| transient | 0.10 | 0.62 | 2.71 | | **1.94** | **7.81** | **31.79** |
+| = peak allocated | 18.34 | 21.73 | 35.25 | | 21.82 | 29.84 | 62.45 |
+
+The transient column is the whole story of the difference between the two
+presets. On Qwen3-8B it stays under 3 GB even at 64k. On Qwen3.5-9B it is linear
+in `S` and overtakes everything else — 31.79 GB at 64k against 30.65 GB of
+resident tensors, and more than four times the drafter's entire overhead. That
+is `torch_chunk_gated_delta_rule`, the pure-PyTorch fallback for the linear
+attention, which casts q/k/v/beta/g to float32 at full sequence length. Reducing
+the drafter's footprint cannot help it; installing `kernels` so transformers
+fetches the `fla` Triton kernel is what would.
 
 **Qwen3-8B cannot honestly be run at 64k.** Its
 `max_position_embeddings` is 40960, and the DFlash draft checkpoint inherits the
