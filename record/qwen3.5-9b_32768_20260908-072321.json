@@ -1,0 +1,2789 @@
+{
+  "git_commit": "b9df114",
+  "backend": "transformers",
+  "model": "Qwen/Qwen3.5-9B",
+  "draft": "z-lab/Qwen3.5-9B-DFlash",
+  "model_name": "qwen3.5-9b",
+  "context_length": 32768,
+  "context_source": "THUDM/LongBench",
+  "context_tasks": [
+    "narrativeqa",
+    "gov_report",
+    "qmsum",
+    "musique",
+    "hotpotqa",
+    "2wikimqa",
+    "passage_retrieval_en",
+    "passage_count",
+    "triviaqa",
+    "trec",
+    "samsum"
+  ],
+  "context_split": "auto",
+  "context_extend": true,
+  "context_task_report": {
+    "narrativeqa": {
+      "split": "full",
+      "documents": 200,
+      "composable": false,
+      "natural": 1,
+      "composed": 0,
+      "skipped": 4
+    },
+    "gov_report": {
+      "split": "full",
+      "documents": 200,
+      "composable": false,
+      "natural": 0,
+      "composed": 0,
+      "skipped": 8
+    },
+    "qmsum": {
+      "split": "full",
+      "documents": 200,
+      "composable": false,
+      "natural": 0,
+      "composed": 0,
+      "skipped": 1
+    },
+    "musique": {
+      "split": "full",
+      "documents": 200,
+      "composable": true,
+      "natural": 0,
+      "composed": 4,
+      "skipped": 0
+    },
+    "hotpotqa": {
+      "split": "full",
+      "documents": 200,
+      "composable": true,
+      "natural": 0,
+      "composed": 5,
+      "skipped": 0
+    },
+    "2wikimqa": {
+      "split": "full",
+      "documents": 200,
+      "composable": true,
+      "natural": 0,
+      "composed": 4,
+      "skipped": 0
+    },
+    "passage_retrieval_en": {
+      "split": "full",
+      "documents": 200,
+      "composable": true,
+      "natural": 0,
+      "composed": 2,
+      "skipped": 0
+    },
+    "passage_count": {
+      "split": "full",
+      "documents": 200,
+      "composable": true,
+      "natural": 0,
+      "composed": 2,
+      "skipped": 0
+    },
+    "triviaqa": {
+      "split": "full",
+      "documents": 200,
+      "composable": true,
+      "natural": 0,
+      "composed": 5,
+      "skipped": 0
+    },
+    "trec": {
+      "split": "full",
+      "documents": 200,
+      "composable": true,
+      "natural": 0,
+      "composed": 5,
+      "skipped": 0
+    },
+    "samsum": {
+      "split": "full",
+      "documents": 200,
+      "composable": true,
+      "natural": 0,
+      "composed": 4,
+      "skipped": 0
+    }
+  },
+  "num_composed_samples": 31,
+  "hidden_states": "full",
+  "prefill_chunk": null,
+  "device_map": "balanced",
+  "max_memory": null,
+  "target_device_map": {
+    "model.embed_tokens": 0,
+    "model.layers.0": 0,
+    "model.layers.1": 0,
+    "model.layers.2": 0,
+    "model.layers.3": 0,
+    "model.layers.4": 0,
+    "model.layers.5": 0,
+    "model.layers.6": 0,
+    "model.layers.7": 0,
+    "model.layers.8": 0,
+    "model.layers.9": 0,
+    "model.layers.10": 0,
+    "model.layers.11": 0,
+    "model.layers.12": 1,
+    "model.layers.13": 1,
+    "model.layers.14": 1,
+    "model.layers.15": 1,
+    "model.layers.16": 1,
+    "model.layers.17": 1,
+    "model.layers.18": 1,
+    "model.layers.19": 1,
+    "model.layers.20": 1,
+    "model.layers.21": 1,
+    "model.layers.22": 1,
+    "model.layers.23": 1,
+    "model.layers.24": 1,
+    "model.layers.25": 1,
+    "model.layers.26": 1,
+    "model.layers.27": 1,
+    "model.layers.28": 1,
+    "model.layers.29": 1,
+    "model.layers.30": 1,
+    "model.layers.31": 1,
+    "model.norm": 1,
+    "model.rotary_emb": 1,
+    "lm_head": 1
+  },
+  "num_devices": 2,
+  "max_position_embeddings": 262144,
+  "beyond_position_limit": false,
+  "rope_scaling": null,
+  "block_size": 16,
+  "gamma": 15,
+  "num_samples": 32,
+  "max_new_tokens": 512,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "top_k": 0,
+  "reasoning": "off",
+  "baseline": true,
+  "profile_draft_memory": false,
+  "device": "NVIDIA RTX A6000",
+  "torch_version": "2.13.0+cu129",
+  "summary": {
+    "dflash": {
+      "total_input_tokens": 1048575,
+      "mean_input_tokens": 32767.96875,
+      "total_output_tokens": 759,
+      "mean_output_tokens": 23.71875,
+      "total_latency_s": 364.5024222782813,
+      "mean_latency_s": 11.39070069619629,
+      "mean_ttft_s": 10.719404220857541,
+      "p50_ttft_s": 10.719698657747358,
+      "p95_ttft_s": 10.736237679142505,
+      "mean_time_per_output_token_s": 0.061213440222368645,
+      "aggregate_time_per_output_token_s": 0.02825080534278836,
+      "decode_throughput_tok_s": 35.397220994808634,
+      "peak_memory_gb": 49.906646728515625,
+      "peak_site": {
+        "operation": "target layer 31",
+        "decode_token": null,
+        "draft_step": null,
+        "layer": 31,
+        "sample": 1,
+        "peak_gb": 49.906646728515625,
+        "per_device_gb": [
+          24.286372661590576,
+          25.62027406692505
+        ]
+      },
+      "peak_memory_sum_device_maxima_gb": 54.56706190109253,
+      "peak_memory_reserved_gb": 55.556640625,
+      "max_target_cache_gb": 1.069091796875,
+      "acceptance_rate": 0.4050550874918989,
+      "mean_acceptance_length": 7.058252427184466,
+      "acceptance_length_histogram": [
+        0.0,
+        0.13592233009708737,
+        0.14563106796116504,
+        0.14563106796116504,
+        0.13592233009708737,
+        0.02912621359223301,
+        0.05825242718446602,
+        0.009708737864077669,
+        0.02912621359223301,
+        0.009708737864077669,
+        0.0,
+        0.0,
+        0.0,
+        0.009708737864077669,
+        0.009708737864077669,
+        0.0,
+        0.2815533980582524
+      ],
+      "total_accepted_tokens": 625,
+      "total_proposed_tokens": 1543,
+      "gamma": 15,
+      "total_verify_steps": 103,
+      "total_draft_calls": 103,
+      "total_full_gamma_proposals": 102,
+      "mean_full_gamma_proposals_per_sample": 3.1875,
+      "draft_weight_gb": 2.406360149383545,
+      "max_draft_cache_gb": 0.750366248190403,
+      "max_draft_activation_gb": null,
+      "max_target_hidden_states_gb": 8.25,
+      "max_context_feature_gb": 2.0,
+      "draft_overhead_gb": 13.406726397573948,
+      "draft_forward_s": 5.376506556510924,
+      "context_feature_s": 0.1960477745308308,
+      "drafter_latency_s": 5.572554331041754,
+      "target_forward_s": 15.654807739257812,
+      "drafter_share_of_decode": 0.2598852927028497,
+      "target_share_of_decode": 0.730087864529314
+    },
+    "baseline": {
+      "total_input_tokens": 1048575,
+      "mean_input_tokens": 32767.96875,
+      "total_output_tokens": 338,
+      "mean_output_tokens": 10.5625,
+      "total_latency_s": 350.16479432722554,
+      "mean_latency_s": 10.942649822725798,
+      "mean_ttft_s": 10.461923115421087,
+      "p50_ttft_s": 10.460847002919763,
+      "p95_ttft_s": 10.4829299938865,
+      "mean_time_per_output_token_s": 0.04306934534140179,
+      "aggregate_time_per_output_token_s": 0.04539257037927281,
+      "decode_throughput_tok_s": 22.030036890279753,
+      "peak_memory_gb": 38.79827642440796,
+      "peak_site": {
+        "operation": "target layer 30",
+        "decode_token": null,
+        "draft_step": null,
+        "layer": 30,
+        "sample": 0,
+        "peak_gb": 38.79827642440796,
+        "per_device_gb": [
+          14.285908699035645,
+          24.512367725372314
+        ]
+      },
+      "peak_memory_sum_device_maxima_gb": 45.198182582855225,
+      "peak_memory_reserved_gb": 55.556640625,
+      "max_target_cache_gb": 1.050445556640625,
+      "mean_decode_steps": 9.5625
+    }
+  },
+  "samples": [
+    {
+      "index": 0,
+      "task": "musique",
+      "split": "full",
+      "composed": true,
+      "source_index": 722,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 10,
+        "time_to_first_token_s": 10.738816992379725,
+        "total_latency_s": 11.212126284372061,
+        "decode_latency_s": 0.47208418929949403,
+        "time_per_output_token_s": 0.047208418929949404,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586587136,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590669824,
+        "peak_memory_per_device_bytes": [
+          26077027328,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132527616,
+        "target_forward_s": 0.3010856628417969,
+        "num_accepted_tokens": 7,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218525736,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.15680483150482177,
+        "context_feature_s": 0.006078591800527647,
+        "accepted_lengths": [
+          1,
+          6
+        ],
+        "acceptance_lengths": [
+          2,
+          7
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 10,
+        "time_to_first_token_s": 10.455467836931348,
+        "total_latency_s": 10.908530585933477,
+        "decode_latency_s": 0.45163977378979325,
+        "time_per_output_token_s": 0.04516397737897933,
+        "num_decode_steps": 9,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126334464,
+        "target_forward_s": 0.44820771789550784
+      }
+    },
+    {
+      "index": 1,
+      "task": "triviaqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1678,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.702629134990275,
+        "total_latency_s": 11.003724404145032,
+        "decode_latency_s": 0.2998333740979433,
+        "time_per_output_token_s": 0.05996667481958866,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.1475921630859375,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14785125732421875,
+        "context_feature_s": 0.0060340799238765615,
+        "accepted_lengths": [
+          3
+        ],
+        "acceptance_lengths": [
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.453995901159942,
+        "total_latency_s": 10.655941711273044,
+        "decode_latency_s": 0.20076913200318813,
+        "time_per_output_token_s": 0.040153826400637624,
+        "num_decode_steps": 4,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126170624,
+        "target_forward_s": 0.19912249755859374
+      }
+    },
+    {
+      "index": 2,
+      "task": "trec",
+      "split": "full",
+      "composed": true,
+      "source_index": 1968,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.714630495756865,
+        "total_latency_s": 11.017487824894488,
+        "decode_latency_s": 0.30145088816061616,
+        "time_per_output_token_s": 0.043064412594373734,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14822499084472657,
+        "num_accepted_tokens": 5,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14893548583984376,
+        "context_feature_s": 0.006031391787924804,
+        "accepted_lengths": [
+          5
+        ],
+        "acceptance_lengths": [
+          6
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.460804651957005,
+        "total_latency_s": 10.76463137101382,
+        "decode_latency_s": 0.3025810122489929,
+        "time_per_output_token_s": 0.04322585889271328,
+        "num_decode_steps": 6,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126236160,
+        "target_forward_s": 0.30023567962646486
+      }
+    },
+    {
+      "index": 3,
+      "task": "hotpotqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 800,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 9,
+        "time_to_first_token_s": 10.711593432817608,
+        "total_latency_s": 11.01329157082364,
+        "decode_latency_s": 0.30053638899698853,
+        "time_per_output_token_s": 0.033392932110776506,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14735667419433593,
+        "num_accepted_tokens": 7,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14899813842773438,
+        "context_feature_s": 0.006024575791903772,
+        "accepted_lengths": [
+          7
+        ],
+        "acceptance_lengths": [
+          8
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 9,
+        "time_to_first_token_s": 10.467222737148404,
+        "total_latency_s": 10.868045367766172,
+        "decode_latency_s": 0.3995505450293422,
+        "time_per_output_token_s": 0.04439450500326024,
+        "num_decode_steps": 8,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126301696,
+        "target_forward_s": 0.3966192970275879
+      }
+    },
+    {
+      "index": 4,
+      "task": "triviaqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1781,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.718798050656915,
+        "total_latency_s": 11.020165896974504,
+        "decode_latency_s": 0.30019490513950586,
+        "time_per_output_token_s": 0.06003898102790117,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14747544860839842,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14851461791992188,
+        "context_feature_s": 0.006031071785488166,
+        "accepted_lengths": [
+          3
+        ],
+        "acceptance_lengths": [
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.438076794613153,
+        "total_latency_s": 10.639050113037229,
+        "decode_latency_s": 0.1998045351356268,
+        "time_per_output_token_s": 0.03996090702712536,
+        "num_decode_steps": 4,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126170624,
+        "target_forward_s": 0.1981399040222168
+      }
+    },
+    {
+      "index": 5,
+      "task": "2wikimqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1034,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.68898240616545,
+        "total_latency_s": 10.990990998223424,
+        "decode_latency_s": 0.30086416518315673,
+        "time_per_output_token_s": 0.04298059502616525,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14720509338378907,
+        "num_accepted_tokens": 5,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14949478149414064,
+        "context_feature_s": 0.006029152020462789,
+        "accepted_lengths": [
+          5
+        ],
+        "acceptance_lengths": [
+          6
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.449421518016607,
+        "total_latency_s": 10.750342815183103,
+        "decode_latency_s": 0.2997243502177298,
+        "time_per_output_token_s": 0.042817764316818545,
+        "num_decode_steps": 6,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126236160,
+        "target_forward_s": 0.2974280014038086
+      }
+    },
+    {
+      "index": 6,
+      "task": "hotpotqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 804,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.701202176045626,
+        "total_latency_s": 11.003099710214883,
+        "decode_latency_s": 0.3005251889117062,
+        "time_per_output_token_s": 0.06010503778234124,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14775497436523438,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.1485361328125,
+        "context_feature_s": 0.006027232005842961,
+        "accepted_lengths": [
+          3
+        ],
+        "acceptance_lengths": [
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.46023573866114,
+        "total_latency_s": 10.66412850888446,
+        "decode_latency_s": 0.20254835207015276,
+        "time_per_output_token_s": 0.04050967041403055,
+        "num_decode_steps": 4,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126170624,
+        "target_forward_s": 0.20084643173217773
+      }
+    },
+    {
+      "index": 7,
+      "task": "samsum",
+      "split": "full",
+      "composed": true,
+      "source_index": 2077,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 20,
+        "time_to_first_token_s": 10.702062170952559,
+        "total_latency_s": 11.666693313978612,
+        "decode_latency_s": 0.963492822367698,
+        "time_per_output_token_s": 0.048174641118384896,
+        "num_decode_steps": 5,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132888064,
+        "target_forward_s": 0.7609759674072266,
+        "num_accepted_tokens": 14,
+        "num_proposed_tokens": 75,
+        "num_verify_steps": 5,
+        "num_draft_calls": 5,
+        "num_full_gamma_proposals": 5,
+        "gamma": 15,
+        "draft_cache_bytes": 218570792,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.18307264041900634,
+        "context_feature_s": 0.006198623772361316,
+        "accepted_lengths": [
+          2,
+          4,
+          2,
+          1,
+          5
+        ],
+        "acceptance_lengths": [
+          3,
+          5,
+          3,
+          2,
+          6
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 25,
+        "time_to_first_token_s": 10.45015196222812,
+        "total_latency_s": 11.650058597326279,
+        "decode_latency_s": 1.1987228440120816,
+        "time_per_output_token_s": 0.04794891376048326,
+        "num_decode_steps": 24,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126825984,
+        "target_forward_s": 1.190632698059082
+      }
+    },
+    {
+      "index": 8,
+      "task": "trec",
+      "split": "full",
+      "composed": true,
+      "source_index": 1975,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.713902970775962,
+        "total_latency_s": 11.182389602996409,
+        "decode_latency_s": 0.46726111602038145,
+        "time_per_output_token_s": 0.07787685267006357,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132560384,
+        "target_forward_s": 0.30198060607910154,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218550312,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.1572105941772461,
+        "context_feature_s": 0.006080095819430426,
+        "accepted_lengths": [
+          2,
+          1
+        ],
+        "acceptance_lengths": [
+          3,
+          2
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.460847002919763,
+        "total_latency_s": 10.71414768975228,
+        "decode_latency_s": 0.2519743209704757,
+        "time_per_output_token_s": 0.04199572016174594,
+        "num_decode_steps": 5,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126203392,
+        "target_forward_s": 0.24995714950561523
+      }
+    },
+    {
+      "index": 9,
+      "task": "trec",
+      "split": "full",
+      "composed": true,
+      "source_index": 1928,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 4,
+        "time_to_first_token_s": 10.72317617200315,
+        "total_latency_s": 11.023693683091551,
+        "decode_latency_s": 0.2992413779720664,
+        "time_per_output_token_s": 0.0748103444930166,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14685487365722658,
+        "num_accepted_tokens": 2,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14817074584960938,
+        "context_feature_s": 0.006035679816501215,
+        "accepted_lengths": [
+          2
+        ],
+        "acceptance_lengths": [
+          3
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 4,
+        "time_to_first_token_s": 10.458611992187798,
+        "total_latency_s": 10.611950722057372,
+        "decode_latency_s": 0.1521275700069964,
+        "time_per_output_token_s": 0.0380318925017491,
+        "num_decode_steps": 3,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126137856,
+        "target_forward_s": 0.1508134422302246
+      }
+    },
+    {
+      "index": 10,
+      "task": "passage_count",
+      "split": "full",
+      "composed": true,
+      "source_index": 1591,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.719067953061312,
+        "total_latency_s": 11.187936626374722,
+        "decode_latency_s": 0.4677326693199575,
+        "time_per_output_token_s": 0.0935465338639915,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132494848,
+        "target_forward_s": 0.30221665954589844,
+        "num_accepted_tokens": 2,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218501160,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.15747257614135743,
+        "context_feature_s": 0.006071520003722981,
+        "accepted_lengths": [
+          0,
+          2
+        ],
+        "acceptance_lengths": [
+          1,
+          3
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.464746338315308,
+        "total_latency_s": 10.668567120097578,
+        "decode_latency_s": 0.20252705179154873,
+        "time_per_output_token_s": 0.04050541035830975,
+        "num_decode_steps": 4,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126170624,
+        "target_forward_s": 0.20082662582397462
+      }
+    },
+    {
+      "index": 11,
+      "task": "musique",
+      "split": "full",
+      "composed": true,
+      "source_index": 754,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 11,
+        "time_to_first_token_s": 10.711775747127831,
+        "total_latency_s": 11.345647831913084,
+        "decode_latency_s": 0.6326083308085799,
+        "time_per_output_token_s": 0.05750984825532545,
+        "num_decode_steps": 3,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132658688,
+        "target_forward_s": 0.4547685394287109,
+        "num_accepted_tokens": 7,
+        "num_proposed_tokens": 45,
+        "num_verify_steps": 3,
+        "num_draft_calls": 3,
+        "num_full_gamma_proposals": 3,
+        "gamma": 15,
+        "draft_cache_bytes": 218583080,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.1658939266204834,
+        "context_feature_s": 0.006106848202296533,
+        "accepted_lengths": [
+          1,
+          3,
+          3
+        ],
+        "acceptance_lengths": [
+          2,
+          4,
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 11,
+        "time_to_first_token_s": 10.463170970790088,
+        "total_latency_s": 10.965387704782188,
+        "decode_latency_s": 0.5009020050056279,
+        "time_per_output_token_s": 0.04553654590960254,
+        "num_decode_steps": 10,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126367232,
+        "target_forward_s": 0.49718867492675783
+      }
+    },
+    {
+      "index": 12,
+      "task": "passage_count",
+      "split": "full",
+      "composed": true,
+      "source_index": 1448,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.724773794878274,
+        "total_latency_s": 11.025871130637825,
+        "decode_latency_s": 0.2999496227130294,
+        "time_per_output_token_s": 0.05998992454260588,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14741194152832032,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.148316162109375,
+        "context_feature_s": 0.006038559849956073,
+        "accepted_lengths": [
+          3
+        ],
+        "acceptance_lengths": [
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.459038915112615,
+        "total_latency_s": 10.66077242884785,
+        "decode_latency_s": 0.2005447605624795,
+        "time_per_output_token_s": 0.0401089521124959,
+        "num_decode_steps": 4,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126170624,
+        "target_forward_s": 0.19889871978759766
+      }
+    },
+    {
+      "index": 13,
+      "task": "triviaqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1706,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.71414853259921,
+        "total_latency_s": 11.015842405613512,
+        "decode_latency_s": 0.30049606692045927,
+        "time_per_output_token_s": 0.05008267782007655,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14751557922363281,
+        "num_accepted_tokens": 4,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.1487790069580078,
+        "context_feature_s": 0.006037919778027572,
+        "accepted_lengths": [
+          4
+        ],
+        "acceptance_lengths": [
+          5
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.458235566038638,
+        "total_latency_s": 10.710158715955913,
+        "decode_latency_s": 0.25067713111639023,
+        "time_per_output_token_s": 0.041779521852731705,
+        "num_decode_steps": 5,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126203392,
+        "target_forward_s": 0.2486562271118164
+      }
+    },
+    {
+      "index": 14,
+      "task": "hotpotqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 943,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.716890626121312,
+        "total_latency_s": 11.185634050983936,
+        "decode_latency_s": 0.46753166569396853,
+        "time_per_output_token_s": 0.07792194428232808,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132494848,
+        "target_forward_s": 0.30233184814453123,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218501160,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.15711436367034912,
+        "context_feature_s": 0.00607084823329933,
+        "accepted_lengths": [
+          0,
+          3
+        ],
+        "acceptance_lengths": [
+          1,
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.465169304981828,
+        "total_latency_s": 10.718065520748496,
+        "decode_latency_s": 0.2517036208882928,
+        "time_per_output_token_s": 0.04195060348138213,
+        "num_decode_steps": 5,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126203392,
+        "target_forward_s": 0.24973107147216797
+      }
+    },
+    {
+      "index": 15,
+      "task": "2wikimqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1059,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 8,
+        "time_to_first_token_s": 10.710592258255929,
+        "total_latency_s": 11.178175082430243,
+        "decode_latency_s": 0.46643748600035906,
+        "time_per_output_token_s": 0.05830468575004488,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132494848,
+        "target_forward_s": 0.3009934997558594,
+        "num_accepted_tokens": 5,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218501160,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.15745302104949951,
+        "context_feature_s": 0.0060759360488737,
+        "accepted_lengths": [
+          0,
+          5
+        ],
+        "acceptance_lengths": [
+          1,
+          6
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 8,
+        "time_to_first_token_s": 10.45624543307349,
+        "total_latency_s": 10.812248157337308,
+        "decode_latency_s": 0.3543501812964678,
+        "time_per_output_token_s": 0.04429377266205847,
+        "num_decode_steps": 7,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126268928,
+        "target_forward_s": 0.3515575714111328
+      }
+    },
+    {
+      "index": 16,
+      "task": "musique",
+      "split": "full",
+      "composed": true,
+      "source_index": 723,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.712225677911192,
+        "total_latency_s": 11.17905729683116,
+        "decode_latency_s": 0.46567388204857707,
+        "time_per_output_token_s": 0.07761231367476285,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132494848,
+        "target_forward_s": 0.30158128356933595,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218501160,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.1560617027282715,
+        "context_feature_s": 0.006079712167032994,
+        "accepted_lengths": [
+          0,
+          3
+        ],
+        "acceptance_lengths": [
+          1,
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.462921049911529,
+        "total_latency_s": 10.716308708768338,
+        "decode_latency_s": 0.2521482980810106,
+        "time_per_output_token_s": 0.0420247163468351,
+        "num_decode_steps": 5,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126203392,
+        "target_forward_s": 0.2501122245788574
+      }
+    },
+    {
+      "index": 17,
+      "task": "2wikimqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1147,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 21,
+        "time_to_first_token_s": 10.724659159779549,
+        "total_latency_s": 11.19157661497593,
+        "decode_latency_s": 0.46576809929683805,
+        "time_per_output_token_s": 0.022179433299849432,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132920832,
+        "target_forward_s": 0.3008614044189453,
+        "num_accepted_tokens": 18,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218820648,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.15689317989349366,
+        "context_feature_s": 0.00607676806265954,
+        "accepted_lengths": [
+          13,
+          5
+        ],
+        "acceptance_lengths": [
+          14,
+          6
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 21,
+        "time_to_first_token_s": 10.408121016807854,
+        "total_latency_s": 11.408475583884865,
+        "decode_latency_s": 0.9991392670199275,
+        "time_per_output_token_s": 0.04757806033428226,
+        "num_decode_steps": 20,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126694912,
+        "target_forward_s": 0.9922701416015625
+      }
+    },
+    {
+      "index": 18,
+      "task": "triviaqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1742,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.711004117969424,
+        "total_latency_s": 11.013079561758786,
+        "decode_latency_s": 0.30068229977041483,
+        "time_per_output_token_s": 0.06013645995408297,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.1477181396484375,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14869810485839843,
+        "context_feature_s": 0.006028991773026064,
+        "accepted_lengths": [
+          3
+        ],
+        "acceptance_lengths": [
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.462146135047078,
+        "total_latency_s": 10.6663917331025,
+        "decode_latency_s": 0.20279178814962506,
+        "time_per_output_token_s": 0.04055835762992501,
+        "num_decode_steps": 4,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126170624,
+        "target_forward_s": 0.20101750564575196
+      }
+    },
+    {
+      "index": 19,
+      "task": "hotpotqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 856,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.705758171156049,
+        "total_latency_s": 11.17381100077182,
+        "decode_latency_s": 0.46690664486959577,
+        "time_per_output_token_s": 0.07781777414493263,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132560384,
+        "target_forward_s": 0.3016038055419922,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218550312,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.1572915201187134,
+        "context_feature_s": 0.006075135770835914,
+        "accepted_lengths": [
+          2,
+          1
+        ],
+        "acceptance_lengths": [
+          3,
+          2
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.446801187936217,
+        "total_latency_s": 10.698131569195539,
+        "decode_latency_s": 0.2501572039909661,
+        "time_per_output_token_s": 0.04169286733182768,
+        "num_decode_steps": 5,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126203392,
+        "target_forward_s": 0.24822531509399415
+      }
+    },
+    {
+      "index": 20,
+      "task": "passage_retrieval_en",
+      "split": "full",
+      "composed": true,
+      "source_index": 1248,
+      "fitted_input_tokens": 32767,
+      "dflash": {
+        "num_input_tokens": 32767,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.768448327668011,
+        "total_latency_s": 11.071169443894178,
+        "decode_latency_s": 0.301520902197808,
+        "time_per_output_token_s": 0.04307441459968686,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53585845248,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590825472,
+        "peak_memory_per_device_bytes": [
+          26076797440,
+          27509047808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132429312,
+        "target_forward_s": 0.14812054443359374,
+        "num_accepted_tokens": 5,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805675048,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858099712,
+        "context_feature_bytes": 2147418112,
+        "draft_forward_s": 0.14916812133789062,
+        "context_feature_s": 0.006035647872486152,
+        "accepted_lengths": [
+          5
+        ],
+        "acceptance_lengths": [
+          6
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32767,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.514031641650945,
+        "total_latency_s": 10.818032316863537,
+        "decode_latency_s": 0.3026069039478898,
+        "time_per_output_token_s": 0.0432295577068414,
+        "num_decode_steps": 6,
+        "peak_memory_bytes": 41658818560,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48530587648,
+        "peak_memory_per_device_bytes": [
+          15339208192,
+          26319610368
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126203392,
+        "target_forward_s": 0.3002658500671387
+      }
+    },
+    {
+      "index": 21,
+      "task": "trec",
+      "split": "full",
+      "composed": true,
+      "source_index": 1803,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 4,
+        "time_to_first_token_s": 10.721299896016717,
+        "total_latency_s": 11.02368252305314,
+        "decode_latency_s": 0.3010594146326184,
+        "time_per_output_token_s": 0.0752648536581546,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853376,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936064,
+        "peak_memory_per_device_bytes": [
+          26077293568,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14750105285644532,
+        "num_accepted_tokens": 2,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14927462768554686,
+        "context_feature_s": 0.006028736017295159,
+        "accepted_lengths": [
+          2
+        ],
+        "acceptance_lengths": [
+          3
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 4,
+        "time_to_first_token_s": 10.468312731012702,
+        "total_latency_s": 10.621720619034022,
+        "decode_latency_s": 0.15221207309514284,
+        "time_per_output_token_s": 0.03805301827378571,
+        "num_decode_steps": 3,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126137856,
+        "target_forward_s": 0.15089868927001954
+      }
+    },
+    {
+      "index": 22,
+      "task": "musique",
+      "split": "full",
+      "composed": true,
+      "source_index": 770,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.719698657747358,
+        "total_latency_s": 11.186978921759874,
+        "decode_latency_s": 0.46613963693380356,
+        "time_per_output_token_s": 0.06659137670482908,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132527616,
+        "target_forward_s": 0.3002714538574219,
+        "num_accepted_tokens": 4,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218525736,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.15782170009613036,
+        "context_feature_s": 0.006072288021096028,
+        "accepted_lengths": [
+          1,
+          3
+        ],
+        "acceptance_lengths": [
+          2,
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.47314922278747,
+        "total_latency_s": 10.777031576726586,
+        "decode_latency_s": 0.3025502827949822,
+        "time_per_output_token_s": 0.04322146897071174,
+        "num_decode_steps": 6,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126236160,
+        "target_forward_s": 0.30019091415405275
+      }
+    },
+    {
+      "index": 23,
+      "task": "samsum",
+      "split": "full",
+      "composed": true,
+      "source_index": 2000,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 11,
+        "time_to_first_token_s": 10.726282652001828,
+        "total_latency_s": 11.19334526406601,
+        "decode_latency_s": 0.4657447119243443,
+        "time_per_output_token_s": 0.04234042835675857,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132724224,
+        "target_forward_s": 0.3003770599365234,
+        "num_accepted_tokens": 8,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218673192,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.15730789852142335,
+        "context_feature_s": 0.006084256048547104,
+        "accepted_lengths": [
+          7,
+          1
+        ],
+        "acceptance_lengths": [
+          8,
+          2
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 11,
+        "time_to_first_token_s": 10.477266104891896,
+        "total_latency_s": 10.97780667571351,
+        "decode_latency_s": 0.49918827088549733,
+        "time_per_output_token_s": 0.04538075189868158,
+        "num_decode_steps": 10,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126367232,
+        "target_forward_s": 0.4955584945678711
+      }
+    },
+    {
+      "index": 24,
+      "task": "triviaqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1695,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.723514950368553,
+        "total_latency_s": 11.024728685151786,
+        "decode_latency_s": 0.3000389407388866,
+        "time_per_output_token_s": 0.06000778814777732,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.14697161865234376,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14886912536621094,
+        "context_feature_s": 0.006030176192172803,
+        "accepted_lengths": [
+          3
+        ],
+        "acceptance_lengths": [
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 5,
+        "time_to_first_token_s": 10.470205451827496,
+        "total_latency_s": 10.673060127999634,
+        "decode_latency_s": 0.20165796903893352,
+        "time_per_output_token_s": 0.040331593807786704,
+        "num_decode_steps": 4,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126170624,
+        "target_forward_s": 0.2000227813720703
+      }
+    },
+    {
+      "index": 25,
+      "task": "narrativeqa",
+      "split": "full",
+      "composed": false,
+      "source_index": 169,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 9,
+        "time_to_first_token_s": 10.722990880720317,
+        "total_latency_s": 11.692698363680393,
+        "decode_latency_s": 0.9684592527337372,
+        "time_per_output_token_s": 0.10760658363708192,
+        "num_decode_steps": 5,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132625920,
+        "target_forward_s": 0.7653084259033203,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 75,
+        "num_verify_steps": 5,
+        "num_draft_calls": 5,
+        "num_full_gamma_proposals": 5,
+        "gamma": 15,
+        "draft_cache_bytes": 218517544,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.18363992977142335,
+        "context_feature_s": 0.0062006402161205185,
+        "accepted_lengths": [
+          1,
+          0,
+          0,
+          0,
+          2
+        ],
+        "acceptance_lengths": [
+          2,
+          1,
+          1,
+          1,
+          3
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 17,
+        "time_to_first_token_s": 10.477229566313326,
+        "total_latency_s": 11.27965650614351,
+        "decode_latency_s": 0.8011506269685924,
+        "time_per_output_token_s": 0.04712650746874073,
+        "num_decode_steps": 16,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126563840,
+        "target_forward_s": 0.7955593872070312
+      }
+    },
+    {
+      "index": 26,
+      "task": "trec",
+      "split": "full",
+      "composed": true,
+      "source_index": 1973,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.735759125091136,
+        "total_latency_s": 11.037625753320754,
+        "decode_latency_s": 0.3006175523623824,
+        "time_per_output_token_s": 0.0501029253937304,
+        "num_decode_steps": 1,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132462080,
+        "target_forward_s": 0.1473544616699219,
+        "num_accepted_tokens": 4,
+        "num_proposed_tokens": 15,
+        "num_verify_steps": 1,
+        "num_draft_calls": 1,
+        "num_full_gamma_proposals": 1,
+        "gamma": 15,
+        "draft_cache_bytes": 805699624,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.14905856323242186,
+        "context_feature_s": 0.006031648031668738,
+        "accepted_lengths": [
+          4
+        ],
+        "acceptance_lengths": [
+          5
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 6,
+        "time_to_first_token_s": 10.461278611328453,
+        "total_latency_s": 10.714772812090814,
+        "decode_latency_s": 0.2523400578647852,
+        "time_per_output_token_s": 0.042056676310797535,
+        "num_decode_steps": 5,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126203392,
+        "target_forward_s": 0.2503943977355957
+      }
+    },
+    {
+      "index": 27,
+      "task": "passage_retrieval_en",
+      "split": "full",
+      "composed": true,
+      "source_index": 1257,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.727916684933007,
+        "total_latency_s": 11.195582495070994,
+        "decode_latency_s": 0.4665073691867292,
+        "time_per_output_token_s": 0.06664390988381845,
+        "num_decode_steps": 2,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132560384,
+        "target_forward_s": 0.3013570251464844,
+        "num_accepted_tokens": 4,
+        "num_proposed_tokens": 30,
+        "num_verify_steps": 2,
+        "num_draft_calls": 2,
+        "num_full_gamma_proposals": 2,
+        "gamma": 15,
+        "draft_cache_bytes": 218550312,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.1571696662902832,
+        "context_feature_s": 0.006070240016677417,
+        "accepted_lengths": [
+          2,
+          2
+        ],
+        "acceptance_lengths": [
+          3,
+          3
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.4829299938865,
+        "total_latency_s": 10.785797133110464,
+        "decode_latency_s": 0.30157338827848434,
+        "time_per_output_token_s": 0.043081912611212046,
+        "num_decode_steps": 6,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126236160,
+        "target_forward_s": 0.2992369613647461
+      }
+    },
+    {
+      "index": 28,
+      "task": "samsum",
+      "split": "full",
+      "composed": true,
+      "source_index": 2096,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 18,
+        "time_to_first_token_s": 10.727790458127856,
+        "total_latency_s": 12.359647160861641,
+        "decode_latency_s": 1.6306130629964173,
+        "time_per_output_token_s": 0.09058961461091207,
+        "num_decode_steps": 9,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132888064,
+        "target_forward_s": 1.3774754028320313,
+        "num_accepted_tokens": 8,
+        "num_proposed_tokens": 135,
+        "num_verify_steps": 9,
+        "num_draft_calls": 9,
+        "num_full_gamma_proposals": 9,
+        "gamma": 15,
+        "draft_cache_bytes": 218591272,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.21836255931854248,
+        "context_feature_s": 0.0063768320601666345,
+        "accepted_lengths": [
+          0,
+          0,
+          2,
+          0,
+          0,
+          1,
+          0,
+          2,
+          3
+        ],
+        "acceptance_lengths": [
+          1,
+          1,
+          3,
+          1,
+          1,
+          2,
+          1,
+          3,
+          4
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 38,
+        "time_to_first_token_s": 10.49263039091602,
+        "total_latency_s": 12.344352756626904,
+        "decode_latency_s": 1.850507044699043,
+        "time_per_output_token_s": 0.048697553807869554,
+        "num_decode_steps": 37,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1127251968,
+        "target_forward_s": 1.8380091552734374
+      }
+    },
+    {
+      "index": 29,
+      "task": "2wikimqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 1071,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.720704764127731,
+        "total_latency_s": 11.35477951914072,
+        "decode_latency_s": 0.6329126232303679,
+        "time_per_output_token_s": 0.0904160890329097,
+        "num_decode_steps": 3,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132560384,
+        "target_forward_s": 0.4551812438964844,
+        "num_accepted_tokens": 3,
+        "num_proposed_tokens": 45,
+        "num_verify_steps": 3,
+        "num_draft_calls": 3,
+        "num_full_gamma_proposals": 3,
+        "gamma": 15,
+        "draft_cache_bytes": 218529832,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.16591128826141358,
+        "context_feature_s": 0.00611676801671274,
+        "accepted_lengths": [
+          0,
+          1,
+          2
+        ],
+        "acceptance_lengths": [
+          1,
+          2,
+          3
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 7,
+        "time_to_first_token_s": 10.456083625089377,
+        "total_latency_s": 10.759475354105234,
+        "decode_latency_s": 0.30221556685864925,
+        "time_per_output_token_s": 0.04317365240837846,
+        "num_decode_steps": 6,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59651391488,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126236160,
+        "target_forward_s": 0.29994525146484374
+      }
+    },
+    {
+      "index": 30,
+      "task": "samsum",
+      "split": "full",
+      "composed": true,
+      "source_index": 2185,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 512,
+        "time_to_first_token_s": 10.723600950092077,
+        "total_latency_s": 17.35988730704412,
+        "decode_latency_s": 6.634860458783805,
+        "time_per_output_token_s": 0.01295871183356212,
+        "num_decode_steps": 39,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59653488640,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1147928576,
+        "target_forward_s": 6.00492822265625,
+        "num_accepted_tokens": 473,
+        "num_proposed_tokens": 583,
+        "num_verify_steps": 39,
+        "num_draft_calls": 39,
+        "num_full_gamma_proposals": 38,
+        "gamma": 15,
+        "draft_cache_bytes": 220794920,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.482002272605896,
+        "context_feature_s": 0.007644319790648296,
+        "accepted_lengths": [
+          1,
+          0,
+          3,
+          1,
+          1,
+          3,
+          1,
+          7,
+          8,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          13
+        ],
+        "acceptance_lengths": [
+          2,
+          1,
+          4,
+          2,
+          2,
+          4,
+          2,
+          8,
+          9,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          13
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 58,
+        "time_to_first_token_s": 10.456496215891093,
+        "total_latency_s": 13.309965048916638,
+        "decode_latency_s": 2.8521704021841288,
+        "time_per_output_token_s": 0.04917535176179532,
+        "num_decode_steps": 57,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59653488640,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1127907328,
+        "target_forward_s": 2.833076583862305
+      }
+    },
+    {
+      "index": 31,
+      "task": "hotpotqa",
+      "split": "full",
+      "composed": true,
+      "source_index": 890,
+      "fitted_input_tokens": 32768,
+      "dflash": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 9,
+        "time_to_first_token_s": 10.736237679142505,
+        "total_latency_s": 11.372001949232072,
+        "decode_latency_s": 0.6346161458641291,
+        "time_per_output_token_s": 0.07051290509601434,
+        "num_decode_steps": 3,
+        "peak_memory_bytes": 53586853888,
+        "peak_memory_reserved_bytes": 59653488640,
+        "peak_memory_sum_device_maxima_bytes": 58590936576,
+        "peak_memory_per_device_bytes": [
+          26077294080,
+          27509559808
+        ],
+        "peak_site": {
+          "operation": "target layer 31",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 31
+        },
+        "target_cache_bytes": 1132625920,
+        "target_forward_s": 0.4564520721435547,
+        "num_accepted_tokens": 5,
+        "num_proposed_tokens": 45,
+        "num_verify_steps": 3,
+        "num_draft_calls": 3,
+        "num_full_gamma_proposals": 3,
+        "gamma": 15,
+        "draft_cache_bytes": 218558504,
+        "draft_activation_bytes": null,
+        "target_hidden_states_bytes": 8858370048,
+        "context_feature_bytes": 2147483648,
+        "draft_forward_s": 0.1663580141067505,
+        "context_feature_s": 0.006123487833188846,
+        "accepted_lengths": [
+          1,
+          2,
+          2
+        ],
+        "acceptance_lengths": [
+          2,
+          3,
+          3
+        ]
+      },
+      "baseline": {
+        "num_input_tokens": 32768,
+        "num_output_tokens": 9,
+        "time_to_first_token_s": 10.450494084041566,
+        "total_latency_s": 10.851788674946874,
+        "decode_latency_s": 0.400132458191365,
+        "time_per_output_token_s": 0.04445916202126278,
+        "num_decode_steps": 8,
+        "peak_memory_bytes": 41659332096,
+        "peak_memory_reserved_bytes": 59653488640,
+        "peak_memory_sum_device_maxima_bytes": 48531179008,
+        "peak_memory_per_device_bytes": [
+          15339377664,
+          26319954432
+        ],
+        "peak_site": {
+          "operation": "target layer 30",
+          "decode_token": null,
+          "draft_step": null,
+          "layer": 30
+        },
+        "target_cache_bytes": 1126301696,
+        "target_forward_s": 0.39719702529907225
+      }
+    }
+  ],
+  "decoding_speedup": 1.6067708452375238
+}
