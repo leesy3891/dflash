@@ -1,0 +1,171 @@
+model,context_length,mode,num_devices,phase,phase_index,is_peak_phase,mean_occurrences_per_sample,peak_interval_label,mean_interval_peak_gb,max_interval_peak_gb,peak_allocated_before_gb,peak_allocated_after_gb,peak_transient_gb,peak_unattributed_gb,target_weight_gb,target_kv_gb,draft_weight_gb,draft_kv_gb,selected_hidden_gb,context_feature_gb
+qwen3-8b,4096,dflash,1,prefill: target forward,0,True,1,target layer 35,18.3447,18.3447,17.2178,17.9368,0.4079,0.4163,15.2564,0.5625,1.9532,0.0,0.1562,0.0
+qwen3-8b,4096,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,18.0931,18.0931,17.9368,17.9368,0.1562,0.3209,15.2564,0.5625,1.9532,0.0,0.0,0.0
+qwen3-8b,4096,dflash,1,prefill: first token,2,False,1,prefill: first token,17.9368,17.9368,17.9368,17.9368,0.0,0.1647,15.2564,0.5625,1.9532,0.0,0.0,0.0
+qwen3-8b,4096,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,17.9368,17.9368,17.9368,17.9368,0.0,0.0084,15.2564,0.5625,1.9532,0.0,0.0,0.1562
+qwen3-8b,4096,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,17.9368,17.9368,17.9368,17.9368,0.0,0.0084,15.2564,0.5625,1.9532,0.0,0.0,0.1562
+qwen3-8b,4096,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,18.0962,18.0962,17.9368,18.0155,0.0808,0.0894,15.2564,0.5625,1.9532,0.0784,0.0,0.1562
+qwen3-8b,4096,dflash,1,decode: draft forward,6,False,61.517,decode: draft forward,17.8941,17.9579,17.9486,17.9486,0.0093,0.0264,15.2564,0.6327,1.9532,0.0879,0.0006,0.0006
+qwen3-8b,4096,dflash,1,decode: draft rollback/crop,7,False,56.75,decode: draft rollback/crop,17.9219,18.0155,18.0155,18.0155,0.0,0.0086,15.2564,0.5625,1.9532,0.0784,0.0,0.1562
+qwen3-8b,4096,dflash,1,decode: draft logits,8,False,56.75,decode: draft logits,17.9304,18.024,18.0155,18.0197,0.0042,0.0171,15.2564,0.5625,1.9532,0.0784,0.0,0.1562
+qwen3-8b,4096,dflash,1,decode: target verify,9,False,56.75,decode: target verify,17.9893,18.0861,18.0197,18.0268,0.0593,0.0764,15.2564,0.5647,1.9532,0.0784,0.0006,0.1562
+qwen3-8b,4096,dflash,1,decode: verify rollback/crop,10,False,56.75,decode: verify rollback/crop,17.9251,18.0268,18.0268,18.0268,0.0,0.0171,15.2564,0.5647,1.9532,0.0784,0.0006,0.1562
+qwen3-8b,4096,dflash,1,decode: context-feature build,11,False,56.75,decode: context-feature build,17.9257,18.0274,18.0268,17.8711,0.0006,0.1734,15.2564,0.5647,1.9532,0.0784,0.0006,0.0006
+qwen3-8b,4096,baseline,1,prefill: target forward,0,True,1,target layer 35,18.1885,18.1885,17.2178,17.7806,0.4079,0.4163,15.2564,0.5625,1.9532,0.0,0.0,0.0
+qwen3-8b,4096,baseline,1,prefill: first token,2,False,1,prefill: first token,17.7806,17.7806,17.7806,17.7806,0.0,0.0084,15.2564,0.5625,1.9532,0.0,0.0,0.0
+qwen3-8b,4096,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,17.7806,17.7806,17.7806,17.7806,0.0,0.0084,15.2564,0.5625,1.9532,0.0,0.0,0.0
+qwen3-8b,4096,baseline,1,decode: target verify,9,False,175.25,decode: target verify,17.8007,17.8596,17.8506,17.8507,0.0088,0.0172,15.2564,0.6327,1.9532,0.0,0.0,0.0
+qwen3-8b,4096,baseline,1,decode: verify rollback/crop,10,False,175.25,decode: verify rollback/crop,17.7927,17.8507,17.8507,17.8507,0.0,0.0084,15.2564,0.6327,1.9532,0.0,0.0,0.0
+qwen3-8b,8192,dflash,1,prefill: target forward,0,True,1,target layer 35,19.4718,19.4718,17.2179,18.6557,0.8161,0.8247,15.2564,1.125,1.9532,0.0,0.3125,0.0
+qwen3-8b,8192,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,18.9682,18.9682,18.6557,18.6557,0.3125,0.6336,15.2564,1.125,1.9532,0.0,0.0,0.0
+qwen3-8b,8192,dflash,1,prefill: first token,2,False,1,prefill: first token,18.6557,18.6557,18.6557,18.6557,0.0,0.3211,15.2564,1.125,1.9532,0.0,0.0,0.0
+qwen3-8b,8192,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,18.6557,18.6557,18.6557,18.6557,0.0,0.0086,15.2564,1.125,1.9532,0.0,0.0,0.3125
+qwen3-8b,8192,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,18.6557,18.6557,18.6557,18.6557,0.0,0.0086,15.2564,1.125,1.9532,0.0,0.0,0.3125
+qwen3-8b,8192,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,18.9736,18.9736,18.6557,18.8125,0.1611,0.1699,15.2564,1.125,1.9532,0.1566,0.0,0.3125
+qwen3-8b,8192,dflash,1,decode: draft forward,6,False,66.286,decode: draft forward,18.5431,18.6065,18.5895,18.5895,0.0171,0.0343,15.2564,1.1953,1.9532,0.166,0.0006,0.0006
+qwen3-8b,8192,dflash,1,decode: draft rollback/crop,7,False,59,decode: draft rollback/crop,18.6005,18.8125,18.8125,18.8125,0.0,0.0088,15.2564,1.125,1.9532,0.1566,0.0,0.3125
+qwen3-8b,8192,dflash,1,decode: draft logits,8,False,59,decode: draft logits,18.6089,18.821,18.8125,18.8168,0.0042,0.0173,15.2564,1.125,1.9532,0.1566,0.0,0.3125
+qwen3-8b,8192,dflash,1,decode: target verify,9,False,59,decode: target verify,18.7306,18.9458,18.8168,18.8238,0.122,0.1393,15.2564,1.1272,1.9532,0.1566,0.0006,0.3125
+qwen3-8b,8192,dflash,1,decode: verify rollback/crop,10,False,59,decode: verify rollback/crop,18.6036,18.8238,18.8238,18.8238,0.0,0.0173,15.2564,1.1272,1.9532,0.1566,0.0006,0.3125
+qwen3-8b,8192,dflash,1,decode: context-feature build,11,False,59,decode: context-feature build,18.6042,18.8244,18.8238,18.5119,0.0006,0.3298,15.2564,1.1272,1.9532,0.1566,0.0006,0.0006
+qwen3-8b,8192,baseline,1,prefill: target forward,0,True,1,target layer 35,19.1593,19.1593,17.2179,18.3432,0.8161,0.8247,15.2564,1.125,1.9532,0.0,0.0,0.0
+qwen3-8b,8192,baseline,1,prefill: first token,2,False,1,prefill: first token,18.3432,18.3432,18.3432,18.3432,0.0,0.0086,15.2564,1.125,1.9532,0.0,0.0,0.0
+qwen3-8b,8192,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,18.3432,18.3432,18.3432,18.3432,0.0,0.0086,15.2564,1.125,1.9532,0.0,0.0,0.0
+qwen3-8b,8192,baseline,1,decode: target verify,9,False,189.312,decode: target verify,18.3721,18.43,18.4132,18.4134,0.0166,0.0252,15.2564,1.1952,1.9532,0.0,0.0,0.0
+qwen3-8b,8192,baseline,1,decode: verify rollback/crop,10,False,189.312,decode: verify rollback/crop,18.3563,18.4134,18.4134,18.4134,0.0,0.0086,15.2564,1.1952,1.9532,0.0,0.0,0.0
+qwen3-8b,16384,dflash,1,prefill: target forward,0,True,1,target layer 35,21.726,21.7263,17.2182,20.0937,1.6326,1.6415,15.2564,2.2501,1.9532,0.0,0.625,0.0
+qwen3-8b,16384,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,20.7185,20.7187,20.0937,20.0937,0.625,1.2589,15.2564,2.2501,1.9532,0.0,0.0,0.0
+qwen3-8b,16384,dflash,1,prefill: first token,2,False,1,prefill: first token,20.0935,20.0937,20.0937,20.0937,0.0,0.6339,15.2564,2.2501,1.9532,0.0,0.0,0.0
+qwen3-8b,16384,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,20.0935,20.0937,20.0937,20.0937,0.0,0.0089,15.2564,2.2501,1.9532,0.0,0.0,0.625
+qwen3-8b,16384,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,20.0935,20.0937,20.0937,20.0937,0.0,0.0089,15.2564,2.2501,1.9532,0.0,0.0,0.625
+qwen3-8b,16384,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,20.7283,20.7285,20.0937,20.4068,0.3217,0.3309,15.2564,2.2501,1.9532,0.3128,0.0,0.625
+qwen3-8b,16384,dflash,1,decode: draft forward,6,False,94.379,decode: draft forward,19.8424,19.9037,19.871,19.871,0.0327,0.0503,15.2564,2.3203,1.9532,0.3223,0.0006,0.0006
+qwen3-8b,16384,dflash,1,decode: draft rollback/crop,7,False,86.531,decode: draft rollback/crop,19.9482,20.4068,20.4068,20.4068,0.0,0.0091,15.2564,2.2501,1.9532,0.3128,0.0,0.625
+qwen3-8b,16384,dflash,1,decode: draft logits,8,False,86.531,decode: draft logits,19.9567,20.4153,20.4068,20.411,0.0042,0.0176,15.2564,2.2501,1.9532,0.3128,0.0,0.625
+qwen3-8b,16384,dflash,1,decode: target verify,9,False,86.531,decode: target verify,20.2039,20.6658,20.411,20.4181,0.2477,0.2653,15.2564,2.2523,1.9532,0.3128,0.0006,0.625
+qwen3-8b,16384,dflash,1,decode: verify rollback/crop,10,False,86.531,decode: verify rollback/crop,19.951,20.4181,20.4181,20.4181,0.0,0.0176,15.2564,2.2523,1.9532,0.3128,0.0006,0.625
+qwen3-8b,16384,dflash,1,decode: context-feature build,11,False,86.531,decode: context-feature build,19.9516,20.4187,20.4181,19.7936,0.0006,0.6426,15.2564,2.2523,1.9532,0.3128,0.0006,0.0006
+qwen3-8b,16384,baseline,1,prefill: target forward,0,True,1,target layer 35,21.101,21.1013,17.2182,19.4687,1.6326,1.6415,15.2564,2.2501,1.9532,0.0,0.0,0.0
+qwen3-8b,16384,baseline,1,prefill: first token,2,False,1,prefill: first token,19.4685,19.4687,19.4687,19.4687,0.0,0.0089,15.2564,2.2501,1.9532,0.0,0.0,0.0
+qwen3-8b,16384,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,19.4685,19.4687,19.4687,19.4687,0.0,0.0089,15.2564,2.2501,1.9532,0.0,0.0,0.0
+qwen3-8b,16384,baseline,1,decode: target verify,9,False,217.469,decode: target verify,19.515,19.571,19.5386,19.5387,0.0323,0.0411,15.2564,2.3202,1.9532,0.0,0.0,0.0
+qwen3-8b,16384,baseline,1,decode: verify rollback/crop,10,False,217.469,decode: verify rollback/crop,19.4835,19.5387,19.5387,19.5387,0.0,0.0089,15.2564,2.3202,1.9532,0.0,0.0,0.0
+qwen3-8b,32768,dflash,1,prefill: target forward,0,True,1,target layer 35,26.2345,26.2347,17.2188,22.9693,3.2654,3.2749,15.2564,4.5001,1.9532,0.0,1.25,0.0
+qwen3-8b,32768,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,24.2191,24.2193,22.9693,22.9693,1.25,2.5095,15.2564,4.5001,1.9532,0.0,0.0,0.0
+qwen3-8b,32768,dflash,1,prefill: first token,2,False,1,prefill: first token,22.9691,22.9693,22.9693,22.9693,0.0,1.2595,15.2564,4.5001,1.9532,0.0,0.0,0.0
+qwen3-8b,32768,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,22.9691,22.9693,22.9693,22.9693,0.0,0.0095,15.2564,4.5001,1.9532,0.0,0.0,1.25
+qwen3-8b,32768,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,22.9691,22.9693,22.9693,22.9693,0.0,0.0095,15.2564,4.5001,1.9532,0.0,0.0,1.25
+qwen3-8b,32768,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,24.2377,24.2379,22.9693,23.5949,0.643,0.6528,15.2564,4.5001,1.9532,0.6253,0.0,1.25
+qwen3-8b,32768,dflash,1,decode: draft forward,6,False,7.31,decode: draft forward,22.4204,22.4268,22.3636,22.3636,0.0631,0.0813,15.2564,4.5084,1.9532,0.6262,0.0006,0.0006
+qwen3-8b,32768,dflash,1,decode: draft rollback/crop,7,False,7.625,decode: draft rollback/crop,22.7442,23.5949,23.5949,23.5949,0.0,0.0097,15.2564,4.5001,1.9532,0.6253,0.0,1.25
+qwen3-8b,32768,dflash,1,decode: draft logits,8,False,7.625,decode: draft logits,22.7527,23.6034,23.5949,23.5991,0.0042,0.0182,15.2564,4.5001,1.9532,0.6253,0.0,1.25
+qwen3-8b,32768,dflash,1,decode: target verify,9,False,7.625,decode: target verify,23.25,24.1051,23.5991,23.6062,0.499,0.5172,15.2564,4.5023,1.9532,0.6253,0.0006,1.25
+qwen3-8b,32768,dflash,1,decode: verify rollback/crop,10,False,7.625,decode: verify rollback/crop,22.7479,23.6062,23.6062,23.6062,0.0,0.0182,15.2564,4.5023,1.9532,0.6253,0.0006,1.25
+qwen3-8b,32768,dflash,1,decode: context-feature build,11,False,7.625,decode: context-feature build,22.7485,23.6068,23.6062,22.3567,0.0006,1.2682,15.2564,4.5023,1.9532,0.6253,0.0006,0.0006
+qwen3-8b,32768,baseline,1,prefill: target forward,0,True,1,target layer 35,24.9845,24.9847,17.2188,21.7193,3.2654,3.2749,15.2564,4.5001,1.9532,0.0,0.0,0.0
+qwen3-8b,32768,baseline,1,prefill: first token,2,False,1,prefill: first token,21.7191,21.7193,21.7193,21.7193,0.0,0.0095,15.2564,4.5001,1.9532,0.0,0.0,0.0
+qwen3-8b,32768,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,21.7191,21.7193,21.7193,21.7193,0.0,0.0095,15.2564,4.5001,1.9532,0.0,0.0,0.0
+qwen3-8b,32768,baseline,1,decode: target verify,9,False,11.312,decode: target verify,21.7825,21.7883,21.7256,21.7257,0.0626,0.0721,15.2564,4.5066,1.9532,0.0,0.0,0.0
+qwen3-8b,32768,baseline,1,decode: verify rollback/crop,10,False,11.312,decode: verify rollback/crop,21.72,21.7257,21.7257,21.7257,0.0,0.0095,15.2564,4.5066,1.9532,0.0,0.0,0.0
+qwen3-8b,65536,dflash,1,prefill: target forward,0,True,1,target layer 35,35.2513,35.2513,17.2201,28.7203,6.531,6.5417,15.2564,9.0,1.9532,0.0,2.5,0.0
+qwen3-8b,65536,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,31.2203,31.2203,28.7203,28.7203,2.5,5.0107,15.2564,9.0,1.9532,0.0,0.0,0.0
+qwen3-8b,65536,dflash,1,prefill: first token,2,False,1,prefill: first token,28.7203,28.7203,28.7203,28.7203,0.0,2.5107,15.2564,9.0,1.9532,0.0,0.0,0.0
+qwen3-8b,65536,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,28.7203,28.7203,28.7203,28.7203,0.0,0.0107,15.2564,9.0,1.9532,0.0,0.0,2.5
+qwen3-8b,65536,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,28.7203,28.7203,28.7203,28.7203,0.0,0.0107,15.2564,9.0,1.9532,0.0,0.0,2.5
+qwen3-8b,65536,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,31.2564,31.2565,28.7203,29.9709,1.2856,1.2965,15.2564,9.0,1.9532,1.2503,0.0,2.5
+qwen3-8b,65536,dflash,1,decode: draft forward,6,False,19.69,decode: draft forward,27.6122,27.6868,27.5604,27.5603,0.1264,0.1458,15.2564,9.0703,1.9532,1.2598,0.0006,0.0006
+qwen3-8b,65536,dflash,1,decode: draft rollback/crop,7,False,18.844,decode: draft rollback/crop,28.1834,29.9709,29.9709,29.9709,0.0,0.0109,15.2564,9.0,1.9532,1.2503,0.0,2.5
+qwen3-8b,65536,dflash,1,decode: draft logits,8,False,18.844,decode: draft logits,28.1919,29.9794,29.9709,29.9751,0.0042,0.0194,15.2564,9.0,1.9532,1.2503,0.0,2.5
+qwen3-8b,65536,dflash,1,decode: target verify,9,False,18.844,decode: target verify,29.1914,30.9834,29.9749,29.982,1.0014,1.0208,15.2564,9.0021,1.9532,1.2503,0.0006,2.5
+qwen3-8b,65536,dflash,1,decode: verify rollback/crop,10,False,18.844,decode: verify rollback/crop,28.1867,29.9822,29.9822,29.9822,0.0,0.0194,15.2564,9.0022,1.9532,1.2503,0.0006,2.5
+qwen3-8b,65536,dflash,1,decode: context-feature build,11,False,18.844,decode: context-feature build,28.1873,29.9828,29.9822,27.4828,0.0006,2.5194,15.2564,9.0022,1.9532,1.2503,0.0006,0.0006
+qwen3-8b,65536,baseline,1,prefill: target forward,0,True,1,target layer 35,32.7513,32.7513,17.2201,26.2203,6.531,6.5417,15.2564,9.0,1.9532,0.0,0.0,0.0
+qwen3-8b,65536,baseline,1,prefill: first token,2,False,1,prefill: first token,26.2203,26.2203,26.2203,26.2203,0.0,0.0107,15.2564,9.0,1.9532,0.0,0.0,0.0
+qwen3-8b,65536,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,26.2203,26.2203,26.2203,26.2203,0.0,0.0107,15.2564,9.0,1.9532,0.0,0.0,0.0
+qwen3-8b,65536,baseline,1,decode: target verify,9,False,49.281,decode: target verify,26.3489,26.4165,26.2904,26.2905,0.126,0.1367,15.2564,9.0702,1.9532,0.0,0.0,0.0
+qwen3-8b,65536,baseline,1,decode: verify rollback/crop,10,False,49.281,decode: verify rollback/crop,26.2238,26.2905,26.2905,26.2905,0.0,0.0107,15.2564,9.0702,1.9532,0.0,0.0,0.0
+qwen3.5-9b,4096,dflash,1,prefill: target forward,0,True,1,target layer 30,21.8171,21.8171,19.0922,21.0146,0.8025,0.8111,16.6778,1.6719,2.4064,0.0,0.25,0.0
+qwen3.5-9b,4096,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,21.2646,21.2646,21.0146,21.0146,0.25,0.5086,16.6778,1.6719,2.4064,0.0,0.0,0.0
+qwen3.5-9b,4096,dflash,1,prefill: first token,2,False,1,prefill: first token,21.0146,21.0146,21.0146,21.0146,0.0,0.2586,16.6778,1.6719,2.4064,0.0,0.0,0.0
+qwen3.5-9b,4096,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,21.0146,21.0146,21.0146,21.0146,0.0,0.0086,16.6778,1.6719,2.4064,0.0,0.0,0.25
+qwen3.5-9b,4096,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,21.0146,21.0146,21.0146,21.0146,0.0,0.0086,16.6778,1.6719,2.4064,0.0,0.0,0.25
+qwen3.5-9b,4096,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,21.2054,21.2055,21.0146,21.109,0.0965,0.1053,16.6778,1.6719,2.4064,0.0941,0.0,0.25
+qwen3.5-9b,4096,dflash,1,decode: draft forward,6,False,40.048,decode: draft forward,19.451,19.4633,19.3994,19.3994,0.0638,0.0866,16.6778,0.1943,2.4064,0.0963,0.001,0.001
+qwen3.5-9b,4096,dflash,1,decode: draft rollback/crop,7,False,27.281,decode: draft rollback/crop,20.0907,21.109,21.109,21.109,0.0,0.0088,16.6778,1.6719,2.4064,0.0941,0.0,0.25
+qwen3.5-9b,4096,dflash,1,decode: draft logits,8,False,27.281,decode: draft logits,20.1045,21.1228,21.109,21.1159,0.0069,0.0227,16.6778,1.6719,2.4064,0.0941,0.0,0.25
+qwen3.5-9b,4096,dflash,1,decode: target verify,9,False,27.281,decode: target verify,20.1338,21.1169,21.1159,19.6316,0.001,1.508,16.6778,0.1797,2.4064,0.0941,0.001,0.25
+qwen3.5-9b,4096,dflash,1,decode: verify rollback/crop,10,False,27.281,decode: verify rollback/crop,19.4874,19.6316,19.6316,19.6316,0.0,0.0227,16.6778,0.1797,2.4064,0.0941,0.001,0.25
+qwen3.5-9b,4096,dflash,1,decode: context-feature build,11,False,27.281,decode: context-feature build,19.4884,19.6326,19.6316,19.3826,0.001,0.2727,16.6778,0.1797,2.4064,0.0941,0.001,0.001
+qwen3.5-9b,4096,baseline,1,prefill: target forward,0,True,1,target layer 30,21.5983,21.5984,19.0922,20.7646,0.8338,0.8424,16.6778,1.6719,2.4064,0.0,0.0,0.0
+qwen3.5-9b,4096,baseline,1,prefill: first token,2,False,1,prefill: first token,20.7646,20.7646,20.7646,20.7646,0.0,0.0086,16.6778,1.6719,2.4064,0.0,0.0,0.0
+qwen3.5-9b,4096,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,20.7646,20.7646,20.7646,20.7646,0.0,0.0086,16.6778,1.6719,2.4064,0.0,0.0,0.0
+qwen3.5-9b,4096,baseline,1,decode: target verify,9,False,177.094,decode: target verify,19.4383,20.7647,20.7646,19.2664,0.0001,1.5068,16.6778,0.1737,2.4064,0.0,0.0,0.0
+qwen3.5-9b,4096,baseline,1,decode: verify rollback/crop,10,False,177.094,decode: verify rollback/crop,19.2691,19.282,19.282,19.282,0.0,0.0086,16.6778,0.1893,2.4064,0.0,0.0,0.0
+qwen3.5-9b,8192,dflash,1,prefill: target forward,0,True,1,target layer 30,24.4918,24.4918,19.0924,22.8897,1.6021,1.6108,16.6778,3.2969,2.4064,0.0,0.5,0.0
+qwen3.5-9b,8192,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,23.3897,23.3897,22.8897,22.8897,0.5,1.0087,16.6778,3.2969,2.4064,0.0,0.0,0.0
+qwen3.5-9b,8192,dflash,1,prefill: first token,2,False,1,prefill: first token,22.8897,22.8897,22.8897,22.8897,0.0,0.5087,16.6778,3.2969,2.4064,0.0,0.0,0.0
+qwen3.5-9b,8192,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,22.8897,22.8897,22.8897,22.8897,0.0,0.0087,16.6778,3.2969,2.4064,0.0,0.0,0.5
+qwen3.5-9b,8192,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,22.8897,22.8897,22.8897,22.8897,0.0,0.0087,16.6778,3.2969,2.4064,0.0,0.0,0.5
+qwen3.5-9b,8192,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,23.2702,23.2702,22.8897,23.0779,0.1924,0.2014,16.6778,3.2969,2.4064,0.1879,0.0,0.5
+qwen3.5-9b,8192,dflash,1,decode: draft forward,6,False,47.059,decode: draft forward,19.5984,19.6494,19.6015,19.5235,0.0479,0.1488,16.6778,0.3047,2.4064,0.1099,0.001,0.001
+qwen3.5-9b,8192,dflash,1,decode: draft rollback/crop,7,False,26,decode: draft rollback/crop,21.338,23.0779,23.0779,23.0779,0.0,0.009,16.6778,3.2969,2.4064,0.1879,0.0,0.5
+qwen3.5-9b,8192,dflash,1,decode: draft logits,8,False,26,decode: draft logits,21.3518,23.0917,23.0779,23.0848,0.0069,0.0229,16.6778,3.2969,2.4064,0.1879,0.0,0.5
+qwen3.5-9b,8192,dflash,1,decode: target verify,9,False,26,decode: target verify,21.4057,23.0858,23.0848,20.1005,0.001,3.0082,16.6778,0.3047,2.4064,0.1879,0.001,0.5
+qwen3.5-9b,8192,dflash,1,decode: verify rollback/crop,10,False,26,decode: verify rollback/crop,19.82,20.1005,20.1005,20.1005,0.0,0.0229,16.6778,0.3047,2.4064,0.1879,0.001,0.5
+qwen3.5-9b,8192,dflash,1,decode: context-feature build,11,False,26,decode: context-feature build,19.8209,20.1015,20.1005,19.6015,0.001,0.5229,16.6778,0.3047,2.4064,0.1879,0.001,0.001
+qwen3.5-9b,8192,baseline,1,prefill: target forward,0,True,1,target layer 30,24.0543,24.0543,19.0924,22.3897,1.6646,1.6733,16.6778,3.2969,2.4064,0.0,0.0,0.0
+qwen3.5-9b,8192,baseline,1,prefill: first token,2,False,1,prefill: first token,22.3897,22.3897,22.3897,22.3897,0.0,0.0087,16.6778,3.2969,2.4064,0.0,0.0,0.0
+qwen3.5-9b,8192,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,22.3897,22.3897,22.3897,22.3897,0.0,0.0087,16.6778,3.2969,2.4064,0.0,0.0,0.0
+qwen3.5-9b,8192,baseline,1,decode: target verify,9,False,148.281,decode: target verify,19.7653,22.3899,22.3897,19.3916,0.0001,3.007,16.6778,0.2987,2.4064,0.0,0.0,0.0
+qwen3.5-9b,8192,baseline,1,decode: verify rollback/crop,10,False,148.281,decode: verify rollback/crop,19.3938,19.4072,19.4072,19.4072,0.0,0.0087,16.6778,0.3143,2.4064,0.0,0.0,0.0
+qwen3.5-9b,16384,dflash,1,prefill: target forward,0,True,1,target layer 30,29.8412,29.8412,19.0927,26.64,3.2012,3.2103,16.6778,6.5469,2.4064,0.0,1.0,0.0
+qwen3.5-9b,16384,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,27.64,27.64,26.64,26.64,1.0,2.0091,16.6778,6.5469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,16384,dflash,1,prefill: first token,2,False,1,prefill: first token,26.64,26.64,26.64,26.64,0.0,1.0091,16.6778,6.5469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,16384,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,26.64,26.64,26.64,26.64,0.0,0.0091,16.6778,6.5469,2.4064,0.0,0.0,1.0
+qwen3.5-9b,16384,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,26.64,26.64,26.64,26.64,0.0,0.0091,16.6778,6.5469,2.4064,0.0,0.0,1.0
+qwen3.5-9b,16384,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,27.3998,27.3998,26.64,27.0157,0.3842,0.3935,16.6778,6.5469,2.4064,0.3754,0.0,1.0
+qwen3.5-9b,16384,dflash,1,decode: draft forward,6,False,42.75,decode: draft forward,19.8965,20.056,20.0393,19.8051,0.0167,0.2741,16.6778,0.5547,2.4064,0.1412,0.001,0.001
+qwen3.5-9b,16384,dflash,1,decode: draft rollback/crop,7,False,27.719,decode: draft rollback/crop,22.8859,27.0157,27.0157,27.0157,0.0,0.0093,16.6778,6.5469,2.4064,0.3754,0.0,1.0
+qwen3.5-9b,16384,dflash,1,decode: draft logits,8,False,27.719,decode: draft logits,22.8997,27.0295,27.0157,27.0226,0.0069,0.0232,16.6778,6.5469,2.4064,0.3754,0.0,1.0
+qwen3.5-9b,16384,dflash,1,decode: target verify,9,False,27.719,decode: target verify,23.0358,27.0238,27.0226,21.0383,0.0012,6.0086,16.6778,0.5547,2.4064,0.3754,0.001,1.0
+qwen3.5-9b,16384,dflash,1,decode: verify rollback/crop,10,False,27.719,decode: verify rollback/crop,20.3344,21.0383,21.0383,21.0383,0.0,0.0232,16.6778,0.5547,2.4064,0.3754,0.001,1.0
+qwen3.5-9b,16384,dflash,1,decode: context-feature build,11,False,27.719,decode: context-feature build,20.3354,21.0393,21.0383,20.0393,0.001,1.0232,16.6778,0.5547,2.4064,0.3754,0.001,0.001
+qwen3.5-9b,16384,baseline,1,prefill: target forward,0,True,1,target layer 30,28.9662,28.9662,19.0927,25.64,3.3262,3.3353,16.6778,6.5469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,16384,baseline,1,prefill: first token,2,False,1,prefill: first token,25.64,25.64,25.64,25.64,0.0,0.0091,16.6778,6.5469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,16384,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,25.64,25.64,25.64,25.64,0.0,0.0091,16.6778,6.5469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,16384,baseline,1,decode: target verify,9,False,228.969,decode: target verify,20.1968,25.6402,25.64,19.6419,0.0001,6.0073,16.6778,0.5487,2.4064,0.0,0.0,0.0
+qwen3.5-9b,16384,baseline,1,decode: verify rollback/crop,10,False,228.969,decode: verify rollback/crop,19.6454,19.6575,19.6575,19.6575,0.0,0.0091,16.6778,0.5643,2.4064,0.0,0.0,0.0
+qwen3.5-9b,32768,dflash,1,prefill: target forward,0,True,1,target layer 30,40.5401,40.5401,19.0933,34.1407,6.3994,6.4091,16.6778,13.0469,2.4064,0.0,2.0,0.0
+qwen3.5-9b,32768,dflash,1,prefill: context-feature build,1,False,1,prefill: context-feature build,36.1406,36.1407,34.1407,34.1407,2.0,4.0097,16.6778,13.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,32768,dflash,1,prefill: first token,2,False,1,prefill: first token,34.1406,34.1407,34.1407,34.1407,0.0,2.0097,16.6778,13.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,32768,dflash,1,prefill: context-feature concat,3,False,1,prefill: context-feature concat,34.1406,34.1407,34.1407,34.1407,0.0,0.0097,16.6778,13.0469,2.4064,0.0,0.0,2.0
+qwen3.5-9b,32768,dflash,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,34.1406,34.1407,34.1407,34.1407,0.0,0.0097,16.6778,13.0469,2.4064,0.0,0.0,2.0
+qwen3.5-9b,32768,dflash,1,decode: first draft forward,5,False,1,decode: first draft forward,35.659,35.6593,34.1402,34.8908,0.7685,0.7784,16.6778,13.0465,2.4064,0.7503,0.0,1.9999
+qwen3.5-9b,32768,dflash,1,decode: draft forward,6,False,3.944,decode: draft forward,20.7969,20.9312,20.9149,20.3683,0.0163,0.5867,16.6778,1.0547,2.4064,0.2038,0.001,0.001
+qwen3.5-9b,32768,dflash,1,decode: draft rollback/crop,7,False,3.219,decode: draft rollback/crop,29.9158,34.8913,34.8913,34.8913,0.0,0.0099,16.6778,13.0469,2.4064,0.7504,0.0,2.0
+qwen3.5-9b,32768,dflash,1,decode: draft logits,8,False,3.219,decode: draft logits,29.9297,34.9051,34.8913,34.8982,0.0069,0.0238,16.6778,13.0469,2.4064,0.7504,0.0,2.0
+qwen3.5-9b,32768,dflash,1,decode: target verify,9,False,3.219,decode: target verify,30.0942,34.8996,34.8982,22.9139,0.0014,12.0095,16.6778,1.0547,2.4064,0.7504,0.001,2.0
+qwen3.5-9b,32768,dflash,1,decode: verify rollback/crop,10,False,3.219,decode: verify rollback/crop,22.042,22.9139,22.9139,22.9139,0.0,0.0238,16.6778,1.0547,2.4064,0.7504,0.001,2.0
+qwen3.5-9b,32768,dflash,1,decode: context-feature build,11,False,3.219,decode: context-feature build,22.043,22.9149,22.9139,20.9149,0.001,2.0238,16.6778,1.0547,2.4064,0.7504,0.001,0.001
+qwen3.5-9b,32768,baseline,1,prefill: target forward,0,True,1,target layer 30,38.7901,38.7901,19.0933,32.1407,6.6494,6.6591,16.6778,13.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,32768,baseline,1,prefill: first token,2,False,1,prefill: first token,32.1406,32.1407,32.1407,32.1407,0.0,0.0097,16.6778,13.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,32768,baseline,1,prefill: rollback/crop,4,False,1,prefill: rollback/crop,32.1406,32.1407,32.1407,32.1407,0.0,0.0097,16.6778,13.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,32768,baseline,1,decode: target verify,9,False,9.562,decode: target verify,22.2639,32.1408,32.1407,20.1425,0.0001,12.0079,16.6778,1.0487,2.4064,0.0,0.0,0.0
+qwen3.5-9b,32768,baseline,1,decode: verify rollback/crop,10,False,9.562,decode: verify rollback/crop,20.1426,20.1442,20.1442,20.1442,0.0,0.0097,16.6778,1.0504,2.4064,0.0,0.0,0.0
+qwen3.5-9b,65536,dflash,2,prefill: target forward,0,True,1,target layer 30,62.4462,62.4462,19.1025,49.1498,13.2964,13.3152,16.6778,26.0469,2.4064,0.0,4.0,0.0
+qwen3.5-9b,65536,dflash,2,prefill: context-feature build,1,False,1,prefill: context-feature build,53.1498,53.1498,49.1498,49.1498,4.0,8.0188,16.6778,26.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,65536,dflash,2,prefill: first token,2,False,1,prefill: first token,49.1498,49.1498,49.1498,49.1498,0.0,4.0188,16.6778,26.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,65536,dflash,2,prefill: context-feature concat,3,False,1,prefill: context-feature concat,49.1498,49.1498,49.1498,49.1498,0.0,0.0188,16.6778,26.0469,2.4064,0.0,0.0,4.0
+qwen3.5-9b,65536,dflash,2,prefill: rollback/crop,4,False,1,prefill: rollback/crop,49.1498,49.1498,49.1498,49.1498,0.0,0.0188,16.6778,26.0469,2.4064,0.0,0.0,4.0
+qwen3.5-9b,65536,dflash,2,decode: first draft forward,5,False,1,decode: first draft forward,52.1853,52.1865,49.1494,50.6499,1.5366,1.5557,16.6778,26.0465,2.4064,1.5003,0.0,3.9999
+qwen3.5-9b,65536,dflash,2,decode: draft forward,6,False,4.471,decode: draft forward,22.3814,22.6904,22.6741,21.5025,0.0163,1.2208,16.6778,2.0547,2.4064,0.3288,0.001,0.001
+qwen3.5-9b,65536,dflash,2,decode: draft rollback/crop,7,False,3.375,decode: draft rollback/crop,40.9615,50.6504,50.6504,50.6504,0.0,0.0191,16.6778,26.0469,2.4064,1.5004,0.0,4.0
+qwen3.5-9b,65536,dflash,2,decode: draft logits,8,False,3.375,decode: draft logits,40.9824,50.6712,50.6504,50.6574,0.0139,0.0399,16.6778,26.0469,2.4064,1.5004,0.0,4.0
+qwen3.5-9b,65536,dflash,2,decode: target verify,9,False,3.375,target layer 0,41.3046,50.6593,50.6574,26.6731,0.0019,24.0191,16.6778,2.0547,2.4064,1.5004,0.001,4.0
+qwen3.5-9b,65536,dflash,2,decode: verify rollback/crop,10,False,3.375,decode: verify rollback/crop,24.9545,26.6731,26.6731,26.6731,0.0,0.0329,16.6778,2.0547,2.4064,1.5004,0.001,4.0
+qwen3.5-9b,65536,dflash,2,decode: context-feature build,11,False,3.375,decode: context-feature build,24.9555,26.6741,26.6731,22.6741,0.001,4.0329,16.6778,2.0547,2.4064,1.5004,0.001,0.001
+qwen3.5-9b,65536,baseline,2,prefill: target forward,0,True,1,target layer 30,58.4462,58.4462,19.1025,45.1498,13.2964,13.3152,16.6778,26.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,65536,baseline,2,prefill: first token,2,False,1,prefill: first token,45.1498,45.1498,45.1498,45.1498,0.0,0.0188,16.6778,26.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,65536,baseline,2,prefill: rollback/crop,4,False,1,prefill: rollback/crop,45.1498,45.1498,45.1498,45.1498,0.0,0.0188,16.6778,26.0469,2.4064,0.0,0.0,0.0
+qwen3.5-9b,65536,baseline,2,decode: target verify,9,False,9.969,target layer 0,25.2109,45.1499,45.1498,21.1517,0.0001,24.0171,16.6778,2.0487,2.4064,0.0,0.0,0.0
+qwen3.5-9b,65536,baseline,2,decode: verify rollback/crop,10,False,9.969,decode: verify rollback/crop,21.1518,21.1531,21.1531,21.1531,0.0,0.0188,16.6778,2.0501,2.4064,0.0,0.0,0.0
