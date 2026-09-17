@@ -630,19 +630,27 @@ def _run_context_length(args: argparse.Namespace) -> None:
             prompt, return_tensors="pt", add_special_tokens=False
         ).to(device)
 
-    configs = {"dflash": block_size}
+    # name -> (block size, refinement). Every configuration decodes the same
+    # prompts in the same process, so they differ only in the decoding path.
+    configs = {"dflash": (block_size, None)}
     if args.baseline:
-        configs["baseline"] = 1
+        configs["baseline"] = (1, None)
+    if getattr(args, "local_refine", False):
+        from .cli import refine_configs
+
+        for refine in refine_configs(args):
+            configs[refine.name] = (block_size, refine)
 
     # Warm up at the real context length so allocator growth and kernel
     # autotuning do not land inside the measured samples.
     warmup_ids = encode(samples[0]["prompt"])
-    for size in configs.values():
+    for size, refine in configs.values():
         dflash_generate(
             draft_model, target, warmup_ids, min(64, args.max_new_tokens), None,
             args.temperature, args.top_p, args.top_k, block_size=size,
             hidden_states=args.hidden_states,
             prefill_chunk=args.prefill_chunk,
+            local_refine=refine,
         )
 
     stop = stop_token_ids(target, tokenizer)
@@ -658,7 +666,7 @@ def _run_context_length(args: argparse.Namespace) -> None:
             "source_index": sample["source_index"],
             "fitted_input_tokens": sample["num_input_tokens"],
         }
-        for name, size in configs.items():
+        for name, (size, refine) in configs.items():
             torch.cuda.reset_peak_memory_stats()
             stats = dflash_generate(
                 draft_model,
@@ -671,12 +679,17 @@ def _run_context_length(args: argparse.Namespace) -> None:
                 top_k=args.top_k,
                 block_size=size,
                 return_stats=True,
-                profile_draft_memory=args.profile_draft_memory and name == "dflash",
+                profile_draft_memory=args.profile_draft_memory and name != "baseline",
                 profile_draft_stages=args.profile_draft_stages,
                 hidden_states=args.hidden_states,
                 prefill_chunk=args.prefill_chunk,
+                local_refine=refine,
             )
-            metrics = record_module.sample_metrics(stats, drafter=name == "dflash")
+            metrics = record_module.sample_metrics(stats, drafter=name != "baseline")
+            # Kept per sample so exactness can be checked across configurations.
+            metrics["output_token_ids"] = stats.output_ids[
+                0, stats.num_input_tokens:
+            ].tolist()
             runs[name].append(metrics)
             entry[name] = metrics
         per_sample.append(entry)
@@ -692,7 +705,7 @@ def _run_context_length(args: argparse.Namespace) -> None:
             block_size,
             draft_weight_bytes,
             target_weight_bytes=target_weight_bytes,
-            drafter=name == "dflash",
+            drafter=name != "baseline",
         )
         for name, values in runs.items()
     }
@@ -736,6 +749,12 @@ def _run_context_length(args: argparse.Namespace) -> None:
         "profile_draft_stages": args.profile_draft_stages,
         "device": torch.cuda.get_device_name(0),
         "torch_version": torch.__version__,
+        "local_refine": getattr(args, "local_refine", False),
+        "refine_configs": {
+            name: refine.as_dict()
+            for name, (_, refine) in configs.items()
+            if refine is not None
+        },
         "summary": summaries,
         "samples": per_sample,
     }
@@ -744,6 +763,12 @@ def _run_context_length(args: argparse.Namespace) -> None:
             summaries["baseline"]["aggregate_time_per_output_token_s"]
             / summaries["dflash"]["aggregate_time_per_output_token_s"]
         )
+        payload["decoding_speedups"] = {
+            name: summaries["baseline"]["aggregate_time_per_output_token_s"]
+            / summary["aggregate_time_per_output_token_s"]
+            for name, summary in summaries.items()
+            if name != "baseline"
+        }
     path = record_module.write(
         args.record_dir, args.model_name, args.context_length, payload
     )
@@ -751,6 +776,13 @@ def _run_context_length(args: argparse.Namespace) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
+    if getattr(args, "batch_sizes", None):
+        if args.context_length is None:
+            raise SystemExit("--batch-sizes needs --context-length")
+        from .batch_bench import run_batch_sweep
+
+        run_batch_sweep(args)
+        return
     if getattr(args, "context_length", None) is not None:
         if getattr(args, "context_dry_run", False):
             _run_context_dry_run(args)

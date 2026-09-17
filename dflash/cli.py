@@ -35,6 +35,30 @@ def _add_inference_arguments(parser: argparse.ArgumentParser) -> None:
         "--reasoning",
         help="off/on or a model-supported reasoning level",
     )
+    parser.add_argument(
+        "--local-refine",
+        action="store_true",
+        help="Training-free local causal refinement of each DFlash draft block: "
+        "top-K soft tokens patch the last draft layer's block K/V, block-local "
+        "causal attention re-scores the top-K candidates from their LM-head "
+        "rows. No second drafter or full-vocabulary head forward. Greedy only. "
+        "See dflash/refine.py",
+    )
+    parser.add_argument(
+        "--refine-top-k", type=int, default=16,
+        help="Candidates per draft position for --local-refine",
+    )
+    parser.add_argument(
+        "--refine-window", default="1",
+        help="Previous block positions each draft position attends to: 1, 2, 4, "
+        "... or full. benchmark accepts a comma list (e.g. '1,2,4'), run as "
+        "separate configurations on the same prompts",
+    )
+    parser.add_argument(
+        "--refine-alpha", default="1.0",
+        help="Scale of the soft-embedding patch delta_e = e_soft - e_mask. "
+        "benchmark accepts a comma list, crossed with --refine-window",
+    )
     parser.add_argument("--base-url", default="http://127.0.0.1:30000")
     parser.add_argument("--timeout-s", type=int, default=3600)
 
@@ -152,6 +176,31 @@ def _parser() -> argparse.ArgumentParser:
         "but not comparable against a full-mode record",
     )
     benchmark.add_argument(
+        "--batch-sizes",
+        help="Batch-size sweep at a fixed --context-length, e.g. '1,2,4,8,16'. "
+        "Uses the batched engine (dflash/batch.py): per-row static caches, "
+        "sequential prefill, exact GDN rollback. See BATCH_PROFILING_PLAN.md",
+    )
+    benchmark.add_argument(
+        "--fixed-output-tokens",
+        type=int,
+        default=256,
+        help="Batch sweep: tokens generated per request, prefill token included",
+    )
+    benchmark.add_argument(
+        "--eos-mode",
+        choices=("suppress", "ignore"),
+        default="suppress",
+        help="Batch sweep: suppress EOS so every request reaches "
+        "--fixed-output-tokens (HF min_new_tokens semantics), or ignore it",
+    )
+    benchmark.add_argument(
+        "--batch-seed",
+        type=int,
+        default=0,
+        help="Batch sweep: seed of the prompt order shared by every batch size",
+    )
+    benchmark.add_argument(
         "--profile-draft-memory",
         action="store_true",
         help="Measure the drafter's activation peak; perturbs latency slightly",
@@ -167,6 +216,19 @@ def _parser() -> argparse.ArgumentParser:
         "events per draft layer per call",
     )
     return parser
+
+
+def refine_configs(args) -> list:
+    """One RefineConfig per (--refine-alpha, --refine-window) entry pair."""
+    from .refine import RefineConfig, parse_window
+
+    return [
+        RefineConfig(top_k=args.refine_top_k, window=parse_window(w), alpha=float(a))
+        for a in str(args.refine_alpha).split(",")
+        if a.strip()
+        for w in str(args.refine_window).split(",")
+        if w.strip()
+    ]
 
 
 def _messages(args) -> list[dict]:
@@ -206,6 +268,7 @@ def _generate_transformers(args) -> None:
         args.top_p,
         args.top_k,
         block_size=args.block_size,
+        local_refine=refine_configs(args)[0] if args.local_refine else None,
     )
     print(
         tokenizer.decode(output_ids[0, input_ids.shape[1] :], skip_special_tokens=True)

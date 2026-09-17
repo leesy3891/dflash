@@ -8,6 +8,10 @@ from torch import nn
 from torch.nn import functional as F
 from transformers import DynamicCache
 from transformers.cache_utils import Cache
+from .refine import STAGES as REFINE_STAGES
+from .refine import RefineConfig
+from .refine import capture_for as refine_capture_for
+from .refine import local_refine as _local_refine
 from transformers.models.qwen3.modeling_qwen3 import (
     ALL_ATTENTION_FUNCTIONS,
     GradientCheckpointingLayer,
@@ -680,6 +684,13 @@ _DISABLED_TIMER = _GpuTimer(False)
 # one without.
 _DRAFT_STAGES: "_DraftStages | None" = None
 
+# Same reasoning for local refinement: when set, the drafter's last layer
+# stores its Q, its block-local K/V, the layer's input hidden and the pre-norm
+# output into this dict during the one forward DFlash already runs, so the
+# refinement can reuse them instead of running the drafter again. Only
+# dflash_generate sets it, around the drafter call, and resets it right after.
+_REFINE_CAPTURE: "dict | None" = None
+
 
 class _DraftStages:
     """CUDA-event timers for the stages inside one drafter forward.
@@ -777,12 +788,20 @@ def dflash_generate(
     profile_draft_stages: bool = True,
     hidden_states: str = "full",
     prefill_chunk: int | None = None,
+    local_refine: "RefineConfig | None" = None,
 ):
-    global _DRAFT_STAGES
+    global _DRAFT_STAGES, _REFINE_CAPTURE
     _validate_sampling(temperature, top_p, top_k)
     num_input_tokens = input_ids.shape[1]
     max_length = num_input_tokens + max_new_tokens
     block_size = model.block_size if block_size is None else block_size
+    if local_refine is not None:
+        if temperature > 0:
+            raise ValueError("--local-refine supports greedy decoding only")
+        if isinstance(model, DFlash2DraftModel):
+            raise ValueError("--local-refine is implemented for DFlashDraftModel only")
+        if block_size <= 1:
+            local_refine = None
 
     # Everything DFlash keeps between steps lives with the drafter. On one GPU
     # that is the target's device too; on a sharded target it is one shard, and
@@ -806,6 +825,20 @@ def dflash_generate(
     target_forward_timer = _GpuTimer(timing)
     stages = _DraftStages(timing and profile_draft_stages)
     _DRAFT_STAGES = stages if stages.enabled else None
+    # Refinement is timed whenever latency is: its stages are the point of the
+    # comparison, and the drafter's own stage timers are a separate switch.
+    refine_total_timer = _GpuTimer(timing and local_refine is not None)
+    refine_stage_timers = {
+        name: _GpuTimer(timing and local_refine is not None) for name in REFINE_STAGES
+    }
+    refine_capture = refine_capture_for(model) if local_refine is not None else None
+    refine_calls = 0
+    refine_peak_transient_bytes = 0
+    refine_peak_bytes = 0
+    # Diagnostics, kept on the GPU so they cost no sync per step: how many
+    # proposals the rerank changed, and among verified positions whether the
+    # change fixed or broke a match with the target's own greedy token.
+    refine_counts = None
     # The target's context feature is what DFlash injects into every draft
     # layer, and materialising it forces output_hidden_states on the target.
     # Both are drafter overhead and neither is charged to the baseline.
@@ -843,6 +876,7 @@ def dflash_generate(
 
     phases = PhaseMemory(bool(return_stats), _components)
     tracker = PeakTracker(bool(return_stats), on_interval=phases.interval)
+    current_phase = {"label": "startup"}
 
     def phase(label: str, **site) -> int:
         """Close the interval that just ran and open a named phase.
@@ -850,9 +884,38 @@ def dflash_generate(
         Returns the closed interval's peak, which is what the draft-activation
         probe needs.
         """
+        current_phase["label"] = label
         peak = tracker.boundary(label, **site)
         phases.begin(label, **site)
         return peak
+
+    # Which phase every drafter forward and every output-head forward ran in.
+    # The refinement must add neither: a second drafter forward or a second
+    # full-vocabulary head call inside "decode: local refine" would show up
+    # here as a non-zero count. Hooks fire on module calls only; the rerank
+    # reads candidate rows off the head's weight and never calls it.
+    module_calls: dict = {"draft_model_forward": {}, "output_head_forward": {}}
+    call_hooks = []
+    if return_stats:
+        def _count(kind, full_vocab_size=None):
+            def hook(module, args, output=None):
+                label = current_phase["label"]
+                if full_vocab_size is not None:
+                    if output is None or output.shape[-1] != full_vocab_size:
+                        return
+                calls = module_calls[kind]
+                calls[label] = calls.get(label, 0) + 1
+            return hook
+
+        head = _output_head(target)
+        call_hooks.append(
+            model.register_forward_pre_hook(_count("draft_model_forward"))
+        )
+        call_hooks.append(
+            head.register_forward_hook(
+                _count("output_head_forward", head.weight.shape[0])
+            )
+        )
 
     tap = (
         HiddenStateTap(
@@ -998,13 +1061,17 @@ def dflash_generate(
                     if first_draft
                     else steady_draft_forward_timer
                 )
-                draft_hidden = model(
-                    target_hidden=target_hidden,
-                    noise_embedding=noise_embedding,
-                    position_ids=position_ids[:, start - target_hidden.shape[1] : start + verify_size],
-                    past_key_values=past_key_values_draft,
-                    use_cache=True,
-                )[:, 1 - verify_size :, :]
+                _REFINE_CAPTURE = refine_capture
+                try:
+                    draft_hidden = model(
+                        target_hidden=target_hidden,
+                        noise_embedding=noise_embedding,
+                        position_ids=position_ids[:, start - target_hidden.shape[1] : start + verify_size],
+                        past_key_values=past_key_values_draft,
+                        use_cache=True,
+                    )[:, 1 - verify_size :, :]
+                finally:
+                    _REFINE_CAPTURE = None
             if first_draft:
                 first_draft_cache_pre_crop_bytes = _cache_bytes(past_key_values_draft)
             draft_peak_bytes = phase("decode: draft rollback/crop")
@@ -1043,9 +1110,44 @@ def dflash_generate(
                     )
                     block_output_ids[:, 1:] = _sample_probs(draft_probs)
                     draft_indices = None
+                elif local_refine is not None:
+                    refine_live_before = _all_device_live() if return_stats else 0
+                    phase("decode: local refine")
+                    with refine_total_timer:
+                        refined, refine_rank = _local_refine(
+                            model,
+                            target,
+                            refine_capture,
+                            draft_logits,
+                            local_refine,
+                            mask_token_id=model.mask_token_id,
+                            embedding_scale=float(
+                                _draft_value(model.config, "input_embedding_scale", 1.0)
+                            ),
+                            output_head=_output_head(target),
+                            output_multiplier=float(
+                                _draft_value(model.config, "output_multiplier", 1.0)
+                            ),
+                            stage=lambda name: refine_stage_timers[name],
+                        )
+                    block_output_ids[:, 1:] = refined
+                    refine_calls += 1
+                    if return_stats:
+                        # The draft logits and argmax are dropped here, not
+                        # inside the refinement, so they count as what stood
+                        # on both sides of it rather than as its transient.
+                        original_argmax = torch.argmax(draft_logits, dim=-1)
+                        draft_logits = None
+                        refine_live_after = _all_device_live()
                 else:
                     block_output_ids[:, 1:] = torch.argmax(draft_logits, dim=-1)
-        phase("decode: target verify")
+        verify_open_peak = phase("decode: target verify")
+        if local_refine is not None and verify_size > 1 and return_stats:
+            refine_peak_bytes = max(refine_peak_bytes, verify_open_peak)
+            refine_peak_transient_bytes = max(
+                refine_peak_transient_bytes,
+                verify_open_peak - max(refine_live_before, refine_live_after),
+            )
         with target_forward_timer:
             output, selected, accounted = _target_step(
                 target,
@@ -1075,6 +1177,23 @@ def dflash_generate(
             posterior = torch.argmax(output.logits, dim=-1)
             acceptance_length = (block_output_ids[:, 1:] == posterior[:, :-1]).cumprod(dim=1).sum(dim=1)[0].item()
             bonus = posterior[:, acceptance_length][0]
+            if local_refine is not None and verify_size > 1 and return_stats:
+                # Verified positions are the accepted ones plus the first
+                # rejection: there the proposal's prefix is the target's own,
+                # so posterior is the token either proposal had to match.
+                checked = min(acceptance_length + 1, verify_size - 1)
+                changed = refine_rank[0] != 0
+                truth = posterior[0, :checked]
+                new_ok = block_output_ids[0, 1 : checked + 1] == truth
+                old_ok = original_argmax[0, :checked] == truth
+                step = torch.stack([
+                    changed.sum(),
+                    changed[:checked].sum(),
+                    (changed[:checked] & new_ok & ~old_ok).sum(),
+                    (changed[:checked] & old_ok & ~new_ok).sum(),
+                ])
+                refine_counts = step if refine_counts is None else refine_counts + step
+                original_argmax = None
         output_ids[:, start : start + acceptance_length + 1] = block_output_ids[:, : acceptance_length + 1]
         output_ids[:, start + acceptance_length + 1] = bonus
         produced = min(acceptance_length + 1, max_length - start - 1)
@@ -1114,6 +1233,8 @@ def dflash_generate(
     tracker.finish()
     phases.finish()
     for handle in watch_handles:
+        handle.remove()
+    for handle in call_hooks:
         handle.remove()
 
     output_ids = output_ids[:, :min(start + 1, max_length)]
@@ -1252,7 +1373,66 @@ def dflash_generate(
         first_draft_transient_bytes=_phase_delta("decode: first draft forward", "first"),
         steady_draft_transient_bytes=_phase_delta("decode: draft forward"),
         target_prefill_transient_bytes=_phase_delta("prefill: target forward"),
+        # ------------------------------------------------------------------
+        # Local refinement. None throughout when it is off.
+        # ------------------------------------------------------------------
+        module_calls_by_phase=module_calls,
+        **_refine_stats(
+            local_refine,
+            refine_calls,
+            refine_total_timer,
+            refine_stage_timers,
+            refine_peak_bytes,
+            refine_peak_transient_bytes,
+            refine_counts,
+            module_calls,
+            total_decode_time,
+            num_proposed,
+        ),
     )
+
+
+def _refine_stats(
+    config, calls, total_timer, stage_timers, peak_bytes, transient_bytes,
+    counts, module_calls, total_decode_time, num_proposed,
+) -> dict:
+    if config is None:
+        return {"local_refine": None}
+    total_s = total_timer.seconds
+    stage_s = {name: timer.seconds for name, timer in stage_timers.items()}
+    counts = [0, 0, 0, 0] if counts is None else [int(x) for x in counts.tolist()]
+
+    def per_call_ms(seconds):
+        return None if seconds is None or not calls else seconds * 1000 / calls
+
+    return {
+        "local_refine": config.as_dict(),
+        "refine_calls": calls,
+        "refine_total_s": total_s,
+        "refine_stage_s": stage_s,
+        "mean_refine_total_ms_per_draft_call": per_call_ms(total_s),
+        "mean_refine_soft_embedding_ms": per_call_ms(stage_s["refine_topk_soft_embedding"]),
+        "mean_refine_kv_projection_ms": per_call_ms(stage_s["refine_kv_projection"]),
+        "mean_refine_attention_ms": per_call_ms(stage_s["refine_attention"]),
+        "mean_refine_rerank_ms": per_call_ms(stage_s["refine_candidate_rerank"]),
+        "refine_share_of_decode": (
+            None if total_s is None or total_decode_time <= 0
+            else total_s / total_decode_time
+        ),
+        "refine_peak_bytes": peak_bytes,
+        "refine_peak_transient_bytes": transient_bytes,
+        "refine_changed_proposals": counts[0],
+        "refine_changed_verified_positions": counts[1],
+        "refine_changed_helped": counts[2],
+        "refine_changed_hurt": counts[3],
+        "refine_num_proposed_tokens": num_proposed,
+        "refine_draft_forward_calls": module_calls["draft_model_forward"].get(
+            "decode: local refine", 0
+        ),
+        "refine_output_head_calls": module_calls["output_head_forward"].get(
+            "decode: local refine", 0
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1328,6 +1508,26 @@ class Qwen3DFlashAttention(nn.Module):
         v = v.transpose(1, 2)
         cos, sin = position_embeddings
         q, k = apply_rotary_pos_emb(q, k, cos, sin)
+        capture = _REFINE_CAPTURE
+        if capture is not None and capture["layer_idx"] == self.layer_idx:
+            # The block-local slices are cloned so that the prompt-length K/V
+            # of the first draft call are not kept alive through the capture.
+            capture["q"] = q
+            capture["k"] = k[:, :, -q_len:].clone()
+            capture["v"] = v[:, :, -q_len:].clone()
+            capture["cos"] = cos[:, -q_len:].clone()
+            capture["sin"] = sin[:, -q_len:].clone()
+        attend = getattr(past_key_values, "attend", None)
+        if attend is not None:
+            # Batched sweep: the cache writes each row at its own offset and
+            # masks each row to its own length. See dflash/batch.py.
+            attn_output = attend(
+                self.layer_idx, q, k, v,
+                is_causal=self.is_causal,
+                sliding_window=self.sliding_window,
+                scaling=self.scaling,
+            )
+            return self.o_proj(attn_output.reshape(bsz, q_len, -1)), None
         if past_key_values is not None:
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
             with _stage("cache_update"):
@@ -1523,7 +1723,11 @@ class DFlashDraftModel(Qwen3PreTrainedModel):
         with _stage("context_projection"):
             target_hidden = self.hidden_norm(self.fc(target_hidden))
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
-        for layer in self.layers:
+        capture = _REFINE_CAPTURE
+        last = len(self.layers) - 1
+        for index, layer in enumerate(self.layers):
+            if capture is not None and index == last:
+                capture["layer_input"] = hidden_states
             hidden_states = layer(
                 hidden_states=hidden_states,
                 target_hidden=target_hidden,
@@ -1534,6 +1738,8 @@ class DFlashDraftModel(Qwen3PreTrainedModel):
                 position_embeddings=position_embeddings,
                 **kwargs,
             )
+        if capture is not None:
+            capture["prenorm"] = hidden_states
         return self.norm(hidden_states)
 
     def compute_logits(self, hidden, output_head):

@@ -89,6 +89,40 @@ def sample_metrics(stats, *, drafter: bool = True) -> dict:
         "prefill_context_feature_bytes": stats.prefill_context_feature_bytes,
         "steady_context_feature_bytes": stats.steady_context_feature_bytes,
         "dflash_persistent_resident_bytes": stats.dflash_persistent_resident_bytes,
+        # Which phase each drafter forward and output-head forward ran in.
+        "module_calls_by_phase": getattr(stats, "module_calls_by_phase", None),
+        **_refine_metrics(stats),
+    }
+
+
+REFINE_FIELDS = (
+    "refine_calls",
+    "refine_total_s",
+    "refine_stage_s",
+    "mean_refine_total_ms_per_draft_call",
+    "mean_refine_soft_embedding_ms",
+    "mean_refine_kv_projection_ms",
+    "mean_refine_attention_ms",
+    "mean_refine_rerank_ms",
+    "refine_share_of_decode",
+    "refine_peak_bytes",
+    "refine_peak_transient_bytes",
+    "refine_changed_proposals",
+    "refine_changed_verified_positions",
+    "refine_changed_helped",
+    "refine_changed_hurt",
+    "refine_draft_forward_calls",
+    "refine_output_head_calls",
+)
+
+
+def _refine_metrics(stats) -> dict:
+    config = getattr(stats, "local_refine", None)
+    if config is None:
+        return {"local_refine": None}
+    return {
+        "local_refine": config,
+        **{name: getattr(stats, name) for name in REFINE_FIELDS},
     }
 
 
@@ -583,9 +617,86 @@ def summarize(
         "target_kv_gb": summary["max_target_cache_gb"],
         "target_prefill_transient_gb": summary["max_target_prefill_transient_gb"],
     }
+    summary["module_calls_by_phase"] = _sum_module_calls(runs)
+    summary.update(_refine_summary(runs, total_decode))
     # Built last: it reads the drafter terms above, which only exist by now.
     summary["memory_budget"] = _budget(summary, drafter=True)
     return summary
+
+
+def _sum_module_calls(runs: list[dict]) -> dict | None:
+    """Drafter and output-head forwards per phase, summed over samples."""
+    total: dict = {}
+    for run in runs:
+        for kind, by_phase in (run.get("module_calls_by_phase") or {}).items():
+            bucket = total.setdefault(kind, {})
+            for label, count in by_phase.items():
+                bucket[label] = bucket.get(label, 0) + count
+    return total or None
+
+
+def _refine_summary(runs: list[dict], total_decode: float) -> dict:
+    """Refinement cost as per-draft-call means over every call of every sample.
+
+    Weighted by call, not by request: the per-sample means would give a short
+    generation's handful of calls as much say as a long one's hundreds.
+    """
+    configs = [r.get("local_refine") for r in runs if r.get("local_refine")]
+    if not configs:
+        return {"local_refine": None}
+    calls = sum(r["refine_calls"] for r in runs)
+
+    def total_ms(getter):
+        values = [getter(r) for r in runs]
+        if any(v is None for v in values):
+            return None
+        return sum(values) * 1000
+
+    def per_call(getter):
+        value = total_ms(getter)
+        return None if value is None or not calls else value / calls
+
+    total_refine_ms = total_ms(lambda r: r["refine_total_s"])
+    changed = sum(r["refine_changed_proposals"] for r in runs)
+    proposed = sum(r["num_proposed_tokens"] for r in runs)
+    return {
+        "local_refine": configs[0],
+        "total_refine_calls": calls,
+        "total_refine_s": None if total_refine_ms is None else total_refine_ms / 1000,
+        "mean_refine_total_ms_per_draft_call": per_call(lambda r: r["refine_total_s"]),
+        "mean_refine_soft_embedding_ms": per_call(
+            lambda r: r["refine_stage_s"]["refine_topk_soft_embedding"]
+        ),
+        "mean_refine_kv_projection_ms": per_call(
+            lambda r: r["refine_stage_s"]["refine_kv_projection"]
+        ),
+        "mean_refine_attention_ms": per_call(
+            lambda r: r["refine_stage_s"]["refine_attention"]
+        ),
+        "mean_refine_rerank_ms": per_call(
+            lambda r: r["refine_stage_s"]["refine_candidate_rerank"]
+        ),
+        "refine_share_of_decode": (
+            None
+            if total_refine_ms is None or not total_decode
+            else total_refine_ms / 1000 / total_decode
+        ),
+        "refine_peak_transient_bytes": _maximum(
+            [r["refine_peak_transient_bytes"] for r in runs]
+        ),
+        "refine_peak_bytes": _maximum([r["refine_peak_bytes"] for r in runs]),
+        "refine_changed_proposals": changed,
+        "refine_changed_fraction": changed / proposed if proposed else None,
+        "refine_changed_verified_positions": sum(
+            r["refine_changed_verified_positions"] for r in runs
+        ),
+        "refine_changed_helped": sum(r["refine_changed_helped"] for r in runs),
+        "refine_changed_hurt": sum(r["refine_changed_hurt"] for r in runs),
+        "refine_draft_forward_calls": sum(
+            r["refine_draft_forward_calls"] for r in runs
+        ),
+        "refine_output_head_calls": sum(r["refine_output_head_calls"] for r in runs),
+    }
 
 
 def _git_commit() -> str | None:
@@ -614,6 +725,74 @@ def write(record_dir: str, model_name: str, context_length: int, payload: dict) 
 def print_summary(summaries: dict[str, dict], block_size: int) -> None:
     dflash = summaries["dflash"]
     baseline = summaries.get("baseline")
+    _print_summary_one(dflash, baseline, block_size, "DFlash")
+    for name, summary in summaries.items():
+        if name in ("dflash", "baseline"):
+            continue
+        _print_summary_one(summary, None, block_size, f"DFlash + {name}")
+        print_refine_comparison(name, summary, dflash, baseline)
+
+
+def print_refine_comparison(
+    name: str, refine: dict, dflash: dict, baseline: dict | None
+) -> None:
+    """The refinement's own cost, and what moved against plain DFlash."""
+
+    def row(label: str, value: str) -> None:
+        print(f"  {label:<44}{value}")
+
+    def ms(value):
+        return "n/a" if value is None else f"{value:.3f}ms"
+
+    print(f"\n-- {name}: local refinement overhead")
+    row("config", str(refine.get("local_refine")))
+    row("refine calls", str(refine.get("total_refine_calls")))
+    row("mean_refine_total_ms_per_draft_call", ms(refine.get("mean_refine_total_ms_per_draft_call")))
+    row("mean_refine_soft_embedding_ms", ms(refine.get("mean_refine_soft_embedding_ms")))
+    row("mean_refine_kv_projection_ms", ms(refine.get("mean_refine_kv_projection_ms")))
+    row("mean_refine_attention_ms", ms(refine.get("mean_refine_attention_ms")))
+    row("mean_refine_rerank_ms", ms(refine.get("mean_refine_rerank_ms")))
+    share = refine.get("refine_share_of_decode")
+    row("refine / decode latency", "n/a" if share is None else f"{share * 100:.2f}%")
+    row("refine_peak_transient_bytes", f"{refine.get('refine_peak_transient_bytes')}")
+    row(
+        "changed proposals (helped / hurt)",
+        f"{refine.get('refine_changed_proposals')} "
+        f"({refine.get('refine_changed_helped')} / {refine.get('refine_changed_hurt')})",
+    )
+    row(
+        "drafter / head forwards inside refinement",
+        f"{refine.get('refine_draft_forward_calls')} / {refine.get('refine_output_head_calls')}",
+    )
+    print(f"-- {name} vs DFlash")
+    for label, key, scale, unit in (
+        ("mean acceptance length", "mean_acceptance_length", 1, ""),
+        ("accepted / proposed", "acceptance_rate", 1, ""),
+        ("TPOT", "aggregate_time_per_output_token_s", 1000, "ms"),
+        ("decode latency (total)", None, 1, "s"),
+        ("steady draft forward", "mean_steady_draft_forward_s", 1000, "ms"),
+        ("peak memory", "peak_memory_gb", 1, "GB"),
+    ):
+        if key is None:
+            a = dflash["aggregate_time_per_output_token_s"] * dflash["total_output_tokens"]
+            b = refine["aggregate_time_per_output_token_s"] * refine["total_output_tokens"]
+        else:
+            a, b = dflash.get(key), refine.get(key)
+        if a is None or b is None:
+            continue
+        row(label, f"{a * scale:.4f}{unit} -> {b * scale:.4f}{unit} ({(b - a) * scale:+.4f})")
+    if baseline is not None:
+        base = baseline["aggregate_time_per_output_token_s"]
+        row(
+            "speedup vs baseline",
+            f"{base / dflash['aggregate_time_per_output_token_s']:.3f}x -> "
+            f"{base / refine['aggregate_time_per_output_token_s']:.3f}x",
+        )
+
+
+def _print_summary_one(
+    dflash: dict, baseline: dict | None, block_size: int, title: str
+) -> None:
 
     def row(label: str, value: str) -> None:
         print(f"  {label:<40}{value}")
@@ -717,7 +896,7 @@ def print_summary(summaries: dict[str, dict], block_size: int) -> None:
         row("  = peak allocated", f"{budget['peak_memory_gb']:7.2f} GB")
 
     print(f"\n{'=' * 64}")
-    print("DFlash (block_size=%d)" % block_size)
+    print("%s (block_size=%d)" % (title, block_size))
     common(dflash)
     print("  -- acceptance")
     row("Acceptance rate (accepted/proposed)", f"{dflash['acceptance_rate']:.4f}")
