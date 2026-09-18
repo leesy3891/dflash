@@ -4,7 +4,9 @@ Training-free, block-local refinement of DFlash draft proposals, and a separate
 latency/memory profile of what it costs. Qwen3-8B + `z-lab/Qwen3-8B-DFlash-b16`,
 greedy, `--hidden-states selective`, same LongBench prompts and seed as
 `record_selective` (PROFILING2.md §7). Records are in `record_refine/`, tables
-come from `python -m dflash.refine_report record_refine`.
+come from `python -m dflash.refine_report record_refine`. §7 repeats the study
+on Qwen3.5-9B, where the target's gated-delta-rule rollback bug makes the
+acceptance comparison harder to read.
 
 ## 1. Implementation changes
 
@@ -13,11 +15,11 @@ come from `python -m dflash.refine_report record_refine`.
 | `dflash/refine.py` (new) | `RefineConfig`, `local_causal_mask`, `local_refine()`: the four refinement stages |
 | `dflash/model.py` | `_REFINE_CAPTURE` handle; the drafter's last layer stores Q, block K/V, RoPE cos/sin, its input hidden and the pre-norm output during the one forward DFlash already runs; `dflash_generate(..., local_refine=)` runs the refinement after the draft logits; per-stage CUDA-event timers; a `decode: local refine` phase for PeakTracker/PhaseMemory; forward hooks that count drafter and full-vocabulary LM-head forwards per phase; rerank diagnostics |
 | `dflash/record.py` | per-sample refine fields, per-call aggregates (`mean_refine_*_ms`, `refine_peak_transient_bytes`, `refine_share_of_decode`), module-call totals, comparison printout against plain DFlash |
-| `dflash/cli.py` | `--local-refine`, `--refine-top-k 16`, `--refine-window {1,2,4,...,full}` (comma list in `benchmark`), `--refine-alpha 1.0` |
+| `dflash/cli.py` | `--local-refine`, `--refine-top-k 16`, `--refine-window {1,2,4,...,full}` and `--refine-alpha` (both take comma lists in `benchmark`, crossed) |
 | `dflash/benchmark.py` | baseline, DFlash and every refine window run in one process over the same prompts; per-sample `output_token_ids` kept for exactness checks; `decoding_speedups` per configuration |
 | `dflash/refine_report.py` (new) | the tables in this document |
 | `tests/test_local_refine.py` (new) | tiny fp32 CPU models: exact greedy output for w=1,2,4,full; alpha=0 keeps argmax and re-projected K/V reproduce the captured ones; position 1 never changes; later logits never change earlier choices; mask shape |
-| `queue/run_refine_sweep.sh` (new) | the sweep below |
+| `queue/run_refine_sweep.sh`, `queue/run_refine_alpha_sweep.sh`, `queue/run_refine_best_alpha.sh`, `queue/run_refine_9b.sh` (new) | the sweeps below; the first two take `PRESET` and `RECORD_DIR` |
 
 The plain DFlash path is unchanged when `--local-refine` is off: the capture
 handle is `None`, so the only added work is one global lookup per draft layer.
@@ -483,9 +485,149 @@ often as they hurt. The signal the block's own earlier draft positions carry
 through one attention layer, without re-running the MLP, is too weak to fix
 the drafter's errors.
 
+## 7. Qwen3.5-9B
+
+Same code and conditions on `Qwen/Qwen3.5-9B` + `z-lab/Qwen3.5-9B-DFlash`:
+4k / 16k / 32k at alpha=1 (`record_refine_9b/`), then the 4k alpha sweep
+(`record_refine_9b/alpha_sweep/`). Both run by `queue/run_refine_9b.sh`.
+The 9B drafter has 6 layers, 5 of them `sliding_attention` with the last one
+`full_attention`, so the capture sits on a full-attention layer as on 8B.
+
+### 7.1 Read these numbers with the GDN rollback bug in mind
+
+**On 9B the DFlash path in `dflash/model.py` is not lossless.** `_crop_to`
+crops a linear-attention layer's `conv_states` but not its `recurrent_states`
+(transformers 5.16.1), so every rejected token stays folded into the target's
+24 gated-delta-rule layers. Verification is therefore not exact, and changing
+what the drafter proposes changes the final output rather than only the
+acceptance pattern. The exactness column shows it: on 8B refined output equals
+DFlash output on 32/32 samples at every setting, while on 9B it equals it on
+only 16-31 of 32.
+
+That makes the headline acceptance deltas meaningless as a measure of the
+refinement: they mix a different proposal with a different decoding
+trajectory. The comparison below is therefore restricted to the samples where
+refined and plain DFlash produced the identical output, where acceptance is
+the only thing that can differ.
+
+### 7.2 Headline, all 32 samples (trajectory-confounded)
+
+| ctx | config | accept len | TPOT ms | speedup | refine ms / call | refine % of decode | peak GiB | refine transient MiB | outputs == DFlash | drafter / head fwd in refine |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 4k | baseline | 1.000 | 39.29 | 1.000x | - | - | 21.599 | - | - | - |
+| 4k | DFlash | 8.976 | 16.58 | 2.370x | - | - | 21.818 | - | 32/32 | - |
+| 4k | refine w=1 | 9.394 | 16.08 | 2.444x | 0.473 | 0.31% | 21.818 | 7.35 | 19/32 | 0 / 0 |
+| 4k | refine w=2 | 8.905 | 16.95 | 2.317x | 0.471 | 0.31% | 21.818 | 7.35 | 19/32 | 0 / 0 |
+| 4k | refine w=4 | 9.825 | 15.41 | 2.550x | 0.472 | 0.31% | 21.818 | 7.34 | 21/32 | 0 / 0 |
+| 16k | baseline | 1.000 | 39.68 | 1.000x | - | - | 28.966 | - | - | - |
+| 16k | DFlash | 8.832 | 17.34 | 2.288x | - | - | 29.841 | - | 32/32 | - |
+| 16k | refine w=1 | 8.506 | 18.29 | 2.169x | 0.475 | 0.30% | 29.841 | 7.31 | 17/32 | 0 / 0 |
+| 16k | refine w=2 | 8.970 | 17.37 | 2.285x | 0.475 | 0.30% | 29.841 | 7.34 | 16/32 | 0 / 0 |
+| 16k | refine w=4 | 8.943 | 17.39 | 2.281x | 0.475 | 0.30% | 29.841 | 7.33 | 17/32 | 0 / 0 |
+| 32k | baseline | 1.000 | 36.32 | 1.000x | - | - | 38.790 | - | - | - |
+| 32k | DFlash | 7.058 | 26.58 | 1.366x | - | - | 40.540 | - | 32/32 | - |
+| 32k | refine w=1 | 7.127 | 26.67 | 1.362x | 0.487 | 0.25% | 40.540 | 6.35 | 30/32 | 0 / 0 |
+| 32k | refine w=2 | 7.058 | 27.06 | 1.342x | 0.486 | 0.24% | 40.540 | 6.35 | 31/32 | 0 / 0 |
+| 32k | refine w=4 | 7.058 | 26.85 | 1.353x | 0.486 | 0.25% | 40.540 | 6.35 | 31/32 | 0 / 0 |
+
+### 7.3 Acceptance on identical-output samples only
+
+| ctx | window | matched samples | accept len DFlash -> refine (matched only) | accepted tokens | verify steps | headline accept len delta (all 32) |
+|---|---|---|---|---|---|---|
+| 4k | 1 | 19/32 | 11.258 -> 11.209 (-0.048) | 2392 -> 2392 | 233 -> 234 | +0.418 |
+| 4k | 2 | 19/32 | 11.173 -> 11.057 (-0.116) | 1945 -> 1943 | 191 -> 193 | -0.071 |
+| 4k | 4 | 21/32 | 11.473 -> 11.473 (+0.000) | 2883 -> 2883 | 275 -> 275 | +0.849 |
+| 16k | 1 | 17/32 | 4.694 -> 4.694 (+0.000) | 133 -> 133 | 36 -> 36 | -0.326 |
+| 16k | 2 | 16/32 | 4.692 -> 4.692 (+0.000) | 96 -> 96 | 26 -> 26 | +0.138 |
+| 16k | 4 | 17/32 | 4.694 -> 4.694 (+0.000) | 133 -> 133 | 36 -> 36 | +0.111 |
+| 32k | 1 | 30/32 | 3.618 -> 3.618 (+0.000) | 144 -> 144 | 55 -> 55 | +0.069 |
+| 32k | 2 | 31/32 | 3.375 -> 3.375 (+0.000) | 152 -> 152 | 64 -> 64 | +0.000 |
+| 32k | 4 | 31/32 | 3.375 -> 3.375 (+0.000) | 152 -> 152 | 64 -> 64 | +0.000 |
+
+- **On the matched subset the refinement never helps.** Deltas are 0.000 at six
+  of nine points and -0.048 to -0.116 at the other three. The headline column
+  next to it swings from -0.326 to +0.849 on the same runs, which is the size
+  of the artefact.
+- The matched subset is biased toward short generations, since a long output
+  has more chances to diverge. That is why its acceptance lengths (3.4-11.6)
+  differ from the headline ones; it is still a like-for-like DFlash comparison
+  within the subset.
+- Refinement changes far fewer proposals on 9B than on 8B: 0.45-1.49% against
+  2.8-4.2%. The 9B drafter is much more confident, so its top-1 rarely loses to
+  a rerank of 16 candidates.
+
+### 7.4 4k alpha sweep
+
+| alpha | window | matched samples | accept len, matched only (DFlash -> refine) | headline accept len (DFlash -> refine, all 32) | changed proposals | helped / hurt | TPOT ms (DFlash) |
+|---|---|---|---|---|---|---|---|
+| 0.25 | 1 | 21/32 | 11.390 -> 11.431 (+0.041) | 8.976 -> 8.657 (-0.319) | 57 (0.45%) | 3 / 0 | 17.43 (16.57) |
+| 0.25 | 2 | 19/32 | 11.468 -> 11.346 (-0.122) | 8.976 -> 9.109 (+0.134) | 74 (0.62%) | 1 / 0 | 16.54 (16.57) |
+| 0.25 | 4 | 21/32 | 11.599 -> 11.515 (-0.085) | 8.976 -> 8.599 (-0.377) | 106 (0.78%) | 2 / 2 | 17.52 (16.57) |
+| 0.5 | 1 | 20/32 | 11.299 -> 11.251 (-0.048) | 8.976 -> 7.667 (-1.309) | 146 (0.97%) | 3 / 2 | 19.16 (16.19) |
+| 0.5 | 2 | 20/32 | 11.224 -> 11.224 (+0.000) | 8.976 -> 8.505 (-0.471) | 140 (1.10%) | 5 / 4 | 17.26 (16.19) |
+| 0.5 | 4 | 20/32 | 11.496 -> 11.446 (-0.050) | 8.976 -> 9.240 (+0.264) | 121 (0.91%) | 4 / 4 | 15.89 (16.19) |
+| 1 | 1 | 19/32 | 11.258 -> 11.209 (-0.048) | 8.976 -> 9.394 (+0.418) | 94 (0.76%) | 2 / 1 | 16.08 (16.58) |
+| 1 | 2 | 19/32 | 11.173 -> 11.057 (-0.116) | 8.976 -> 8.905 (-0.071) | 134 (1.02%) | 0 / 2 | 16.95 (16.58) |
+| 1 | 4 | 21/32 | 11.473 -> 11.473 (+0.000) | 8.976 -> 9.825 (+0.849) | 106 (0.89%) | 2 / 3 | 15.41 (16.58) |
+| 2 | 1 | 20/32 | 10.792 -> 10.792 (+0.000) | 8.976 -> 8.347 (-0.629) | 130 (1.00%) | 3 / 3 | 17.83 (16.31) |
+| 2 | 2 | 18/32 | 10.397 -> 10.201 (-0.196) | 8.976 -> 8.414 (-0.562) | 123 (0.95%) | 2 / 4 | 17.66 (16.31) |
+| 2 | 4 | 21/32 | 11.188 -> 11.109 (-0.079) | 8.976 -> 8.186 (-0.790) | 187 (1.42%) | 2 / 7 | 18.17 (16.31) |
+| 4 | 1 | 20/32 | 10.971 -> 10.971 (+0.000) | 8.976 -> 8.587 (-0.389) | 130 (0.96%) | 1 / 2 | 17.55 (16.58) |
+| 4 | 2 | 16/32 | 10.686 -> 10.686 (+0.000) | 8.976 -> 8.371 (-0.605) | 139 (1.00%) | 2 / 3 | 18.03 (16.58) |
+| 4 | 4 | 19/32 | 10.888 -> 10.778 (-0.110) | 8.976 -> 8.506 (-0.470) | 132 (0.91%) | 2 / 2 | 17.72 (16.58) |
+
+Averaged over the three windows, on matched samples only:
+
+| alpha | mean matched accept-len delta | matched samples | helped / hurt |
+|---|---|---|---|
+| 0.25 | -0.055 | 61/96 | 6 / 2 |
+| 0.5 | -0.033 | 60/96 | 12 / 10 |
+| 1 | -0.055 | 59/96 | 4 / 6 |
+| 2 | -0.092 | 59/96 | 7 / 14 |
+| 4 | -0.037 | 55/96 | 5 / 7 |
+
+No alpha helps. Every value is negative on the matched subset, and larger
+alphas both change more proposals and diverge more often, so there is no
+setting where the extra conditioning pays for itself.
+
+### 7.5 Cost on 9B
+
+| ctx | window | calls | soft embedding ms | K/V projection ms | attention ms | rerank ms | total ms / call | % of DFlash steady draft fwd |
+|---|---|---|---|---|---|---|---|---|
+| 4k | 1 | 830 | 0.129 | 0.113 | 0.140 | 0.083 | 0.473 | 5.8 |
+| 4k | 2 | 881 | 0.129 | 0.113 | 0.140 | 0.082 | 0.471 | 5.8 |
+| 4k | 4 | 798 | 0.129 | 0.113 | 0.140 | 0.082 | 0.472 | 5.8 |
+| 16k | 1 | 921 | 0.130 | 0.114 | 0.141 | 0.083 | 0.475 | 5.6 |
+| 16k | 2 | 824 | 0.129 | 0.114 | 0.141 | 0.083 | 0.475 | 5.6 |
+| 16k | 4 | 876 | 0.129 | 0.114 | 0.141 | 0.083 | 0.475 | 5.6 |
+| 32k | 1 | 102 | 0.133 | 0.117 | 0.144 | 0.085 | 0.487 | 5.5 |
+| 32k | 2 | 103 | 0.133 | 0.117 | 0.144 | 0.085 | 0.486 | 5.5 |
+| 32k | 4 | 103 | 0.133 | 0.117 | 0.144 | 0.085 | 0.486 | 5.5 |
+
+- The refinement costs 0.47-0.49 ms per draft call, the same as on 8B, and
+  0.24-0.31% of decode. It is a smaller share than on 8B because 9B acceptance
+  is 7-9, so there are far fewer draft calls per output token.
+- Peak memory is unchanged to the byte at every context, and the transient is
+  6.4-7.4 MiB, as on 8B.
+- The structural checks hold: 0 drafter forwards and 0 full-vocabulary head
+  forwards inside `decode: local refine` at every context and window.
+- TPOT comparisons on 9B are not meaningful per configuration, because the
+  configurations do not generate the same tokens. The refinement's own share of
+  decode, under 0.31%, is the sound cost figure.
+
+### 7.6 What a clean 9B answer would need
+
+The batched engine (`dflash/batch.py`) already implements the replay-based GDN
+rollback that makes 9B verification exact. Running this comparison there, or
+porting that rollback into `dflash_generate`, would give a 9B acceptance
+comparison as trustworthy as the 8B one. Until then the only 9B conclusions
+that stand are the cost and structural ones in §7.5, plus the matched-subset
+result that acceptance does not improve.
+
 Records: `record_refine/qwen3-8b_4096_20260917-174906.json`,
 `record_refine/qwen3-8b_16384_20260917-180932.json`,
 `record_refine/qwen3-8b_32768_20260917-180252.json`,
 `record_refine/timing_control/` (isolated 4k), `record_refine/alpha_sweep/`,
-`record_refine/best_alpha/`. Logs in `logs/refine/`.
+`record_refine/best_alpha/`, `record_refine_9b/` and
+`record_refine_9b/alpha_sweep/`. Logs in `logs/refine/`.
 
