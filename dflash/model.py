@@ -777,7 +777,31 @@ def dflash_generate(
     profile_draft_stages: bool = True,
     hidden_states: str = "full",
     prefill_chunk: int | None = None,
+    component_probe=None,
+    verify_audit=None,
+    memory_tracking: bool = True,
+    watch_layers: bool = True,
+    phase_callback=None,
 ):
+    """Speculative decode of one request.
+
+    Instrumentation switches, all on by default so earlier callers see no
+    change:
+
+    ``memory_tracking``
+        PeakTracker and PhaseMemory. Each phase boundary reads the allocator
+        counters of every device, which is host time the AR baseline never
+        pays; a timing pass should turn it off and take memory from its own
+        pass.
+    ``watch_layers``
+        The per-decoder-layer PeakTracker pre-hooks a sharded target needs
+        for an interval-resolved peak. ~41 us of host time per layer per
+        forward, so again off for a timing pass.
+    ``phase_callback``
+        Called as ``phase_callback(label, site)`` at every phase boundary and
+        once with ``label=None`` at the end. The trace, MoE and counter passes
+        hang their ranges off this.
+    """
     global _DRAFT_STAGES
     _validate_sampling(temperature, top_p, top_k)
     num_input_tokens = input_ids.shape[1]
@@ -803,7 +827,15 @@ def dflash_generate(
     first_draft_forward_timer = _GpuTimer(timing)
     steady_draft_forward_timer = _GpuTimer(timing)
     context_feature_timer = _GpuTimer(timing)
+    # context_feature_timer keeps its old meaning (prefill + decode); these two
+    # split it, because the prefill share is not a decode cost.
+    prefill_context_feature_timer = _GpuTimer(timing)
+    decode_context_feature_timer = _GpuTimer(timing)
     target_forward_timer = _GpuTimer(timing)
+    # The draft logits run on the target's output head -- the last shard on a
+    # sharded target -- so they are a cross-device round trip that
+    # draft_forward_timer never covered.
+    draft_logits_timer = _GpuTimer(timing)
     stages = _DraftStages(timing and profile_draft_stages)
     _DRAFT_STAGES = stages if stages.enabled else None
     # The target's context feature is what DFlash injects into every draft
@@ -827,6 +859,18 @@ def dflash_generate(
 
     def _components() -> dict:
         """Every tracked component's size, all read at the same instant."""
+        if component_probe is not None:
+            # The arch-main probe replaces this split rather than extending
+            # it: target_cache_bytes lumps attention KV, GDN recurrent and
+            # conv states and the rollback recording buffer into one number,
+            # and a caller that asked for the resolved split does not want
+            # the ambiguous field sitting beside it under a similar name.
+            return component_probe(
+                target_cache=past_key_values_target,
+                draft_cache=past_key_values_draft,
+                live=live,
+                draft_weight_bytes=draft_weight_bytes,
+            )
         return {
             # Baseline pays this too -- it is the target's own state, not
             # DFlash's, and must not be charged to the drafter.
@@ -841,8 +885,9 @@ def dflash_generate(
             "allocated_bytes": _all_device_live(),
         }
 
-    phases = PhaseMemory(bool(return_stats), _components)
-    tracker = PeakTracker(bool(return_stats), on_interval=phases.interval)
+    tracking = bool(return_stats) and memory_tracking
+    phases = PhaseMemory(tracking, _components)
+    tracker = PeakTracker(tracking, on_interval=phases.interval)
 
     def phase(label: str, **site) -> int:
         """Close the interval that just ran and open a named phase.
@@ -852,6 +897,8 @@ def dflash_generate(
         """
         peak = tracker.boundary(label, **site)
         phases.begin(label, **site)
+        if phase_callback is not None:
+            phase_callback(label, site)
         return peak
 
     tap = (
@@ -866,8 +913,10 @@ def dflash_generate(
     )
 
     target_config = getattr(target.config, "text_config", None) or target.config
-    watch_handles = tracker.watch(
-        _decoder_layers(target, target_config.num_hidden_layers)
+    watch_handles = (
+        tracker.watch(_decoder_layers(target, target_config.num_hidden_layers))
+        if watch_layers
+        else []
     )
 
     prefill_start = _cuda_time() if return_stats else None
@@ -906,7 +955,7 @@ def dflash_generate(
             # from them are live at the same time here, and that coincidence is
             # what a component-wise maximum over the whole run cannot show.
             phase("prefill: context-feature build", chunk=begin // chunk)
-            with context_feature_timer:
+            with context_feature_timer, prefill_context_feature_timer:
                 feature_chunks.append(torch.cat(selected, dim=-1))
             # The prefill streams are the largest tensors in the run; drop them
             # the moment this chunk's context feature has been built.
@@ -923,7 +972,7 @@ def dflash_generate(
     )
     if block_size > 1:
         phase("prefill: context-feature concat")
-        with context_feature_timer:
+        with context_feature_timer, prefill_context_feature_timer:
             target_hidden = (
                 feature_chunks[0]
                 if len(feature_chunks) == 1
@@ -1016,6 +1065,7 @@ def dflash_generate(
                     steady_draft_cache_bytes, _cache_bytes(past_key_values_draft)
                 )
             phase("decode: draft logits")
+            draft_logits_timer.__enter__()
             if profile_draft_memory:
                 # Subtract whatever the call left behind — the first draft call
                 # populates the whole draft KV cache, which is persistent, not
@@ -1045,7 +1095,11 @@ def dflash_generate(
                     draft_indices = None
                 else:
                     block_output_ids[:, 1:] = torch.argmax(draft_logits, dim=-1)
+            draft_logits_timer.__exit__(None, None, None)
         phase("decode: target verify")
+        block_start = start
+        if verify_audit is not None:
+            verify_audit.before_verify(past_key_values_target)
         with target_forward_timer:
             output, selected, accounted = _target_step(
                 target,
@@ -1095,7 +1149,7 @@ def dflash_generate(
         if verify_size > 1:
             hidden_states_bytes = max(hidden_states_bytes, _tensor_bytes(accounted))
             phase("decode: context-feature build")
-            with context_feature_timer:
+            with context_feature_timer, decode_context_feature_timer:
                 # Reassigning here is also what frees the prompt-length feature
                 # built during prefill -- it stays live across the first draft
                 # call, the first verify and this concat, which is why the first
@@ -1110,9 +1164,29 @@ def dflash_generate(
                 context_feature_bytes, steady_context_feature_bytes
             )
 
+        if verify_audit is not None:
+            # After the context feature is built, so the audit's own target
+            # forwards cannot touch the hidden states this step handed on.
+            verify_audit.after_commit(
+                target,
+                past_key_values_target,
+                block_ids=block_output_ids,
+                position_ids=position_ids,
+                block_start=block_start,
+                produced=produced,
+                verify_size=verify_size,
+                next_anchor=(
+                    None
+                    if stopped or start + 1 >= max_length
+                    else output_ids[:, start : start + 1]
+                ),
+            )
+
     _DRAFT_STAGES = None
     tracker.finish()
     phases.finish()
+    if phase_callback is not None:
+        phase_callback(None, {})
     for handle in watch_handles:
         handle.remove()
 
@@ -1183,6 +1257,12 @@ def dflash_generate(
         peak_memory_per_device_bytes=tracker.peak_per_device,
         peak_site=tracker.peak_site,
         peak_memory_reserved_bytes=_all_device_peak(reserved=True),
+        # Per-device maxima over the run, the same definition the AR baseline
+        # reports; peak_memory_per_device_bytes above is the split at the
+        # simultaneous peak, which is a different quantity.
+        peak_memory_device_maxima_bytes=list(tracker._device_maxima),
+        memory_tracking=tracking,
+        layer_hooks=bool(watch_handles),
         draft_activation_bytes=draft_activation_bytes if profile_draft_memory else None,
         draft_cache_bytes=_cache_bytes(past_key_values_draft),
         target_cache_bytes=_cache_bytes(past_key_values_target),
@@ -1191,6 +1271,9 @@ def dflash_generate(
         draft_forward_s=draft_forward_timer.seconds,
         context_feature_s=context_feature_timer.seconds,
         target_forward_s=target_forward_timer.seconds,
+        prefill_context_feature_s=prefill_context_feature_timer.seconds,
+        decode_context_feature_s=decode_context_feature_timer.seconds,
+        draft_logits_s=draft_logits_timer.seconds,
         # ------------------------------------------------------------------
         # Phase-local memory: per phase, what was live going in, going out, the
         # largest interval inside it, and the component split read at that
