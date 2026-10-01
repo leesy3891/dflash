@@ -1,5 +1,10 @@
 # Long-context profiling and DFlash research results
 
+**All-context phase figures:** [PHASE_VISUALIZATION.md](PHASE_VISUALIZATION.md)
+contains phase memory, DFlash/native AR wall latency, target module execution,
+steady draft kernel costs, and D4 verification overhead for **all three models
+at 4K, 8K, 16K, 32K and 64K**, with numerical tables and CSVs.
+
 Visualizations of [LONG_CONTEXT_BOTTLENECK_REPORT.md](../LONG_CONTEXT_BOTTLENECK_REPORT.md)
 and [DFLASH_ARCHITECTURE_RESEARCH_REPORT.md](../DFLASH_ARCHITECTURE_RESEARCH_REPORT.md),
 generated directly from their cited JSON records, run-specific component CSVs,

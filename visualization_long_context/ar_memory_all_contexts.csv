@@ -1,0 +1,16 @@
+model,context,mode,phase_components_status,target_weights_gb,allocated_sum_device_maxima_gb,reserved_sum_device_maxima_gb,source
+qwen3-8b,4096,AR native,not_recorded,16.381471232,18.261065216,18.767413248,record_arch_main/qwen3-8b/sweep_causal_conv1d+fla_3gpu_20260930-113850.json
+qwen3-8b,8192,AR native,not_recorded,16.381471232,20.112981504,21.00297728,record_arch_main/qwen3-8b/sweep_causal_conv1d+fla_3gpu_20260930-113850.json
+qwen3-8b,16384,AR native,not_recorded,16.381471232,23.817269248,25.776095232,record_arch_main/qwen3-8b/sweep_causal_conv1d+fla_3gpu_20260930-113850.json
+qwen3-8b,32768,AR native,not_recorded,16.381471232,31.224479232,35.947282432,record_arch_main/qwen3-8b/sweep_causal_conv1d+fla_3gpu_20260930-113850.json
+qwen3-8b,65536,AR native,not_recorded,16.381471232,46.039809536,55.35432704,record_arch_main/qwen3-8b/sweep_causal_conv1d+fla_3gpu_20260930-113850.json
+qwen3.5-9b,4096,AR native,not_recorded,18.819627816,20.721041408,21.67406592,record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_3gpu_20260930-103640.json
+qwen3.5-9b,8192,AR native,not_recorded,18.819627816,22.544908288,24.50522112,record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_3gpu_20260930-103640.json
+qwen3.5-9b,16384,AR native,not_recorded,18.819627816,26.192642048,30.129782784,record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_3gpu_20260930-103640.json
+qwen3.5-9b,32768,AR native,not_recorded,18.819627816,33.488109568,41.19855104,record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_3gpu_20260930-103640.json
+qwen3.5-9b,65536,AR native,not_recorded,18.819627816,48.079044608,63.436750848,record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_3gpu_20260930-103640.json
+qwen3.5-35b-a3b,4096,AR native,not_recorded,70.2143642,72.23110144,73.664561152,record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_3gpu_20260930-023904.json
+qwen3.5-35b-a3b,8192,AR native,not_recorded,70.2143642,74.157302784,77.145833472,record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_3gpu_20260930-023904.json
+qwen3.5-35b-a3b,16384,AR native,not_recorded,70.2143642,78.009705472,83.888177152,record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_3gpu_20260930-023904.json
+qwen3.5-35b-a3b,32768,AR native,not_recorded,70.2143642,85.714510848,97.385447424,record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_3gpu_20260930-023904.json
+qwen3.5-35b-a3b,65536,AR native,not_recorded,70.2143642,101.1241216,124.9378304,record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_3gpu_20260930-023904.json

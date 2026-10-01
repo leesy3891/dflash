@@ -1,0 +1,12 @@
+{
+  "records": [
+    "record_arch_main/qwen3-8b/sweep_causal_conv1d+fla_3gpu_20260930-113850.json",
+    "record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_3gpu_20260930-103640.json",
+    "record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_3gpu_20260930-023904.json"
+  ],
+  "missing_measurements": [
+    "native AR phase memory / component split",
+    "semantic first / steady draft stage timers"
+  ],
+  "reference": "visualization_selective/plot_phase_profile_v2.py"
+}
