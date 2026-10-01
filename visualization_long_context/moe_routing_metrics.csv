@@ -1,0 +1,4 @@
+block,layer_step_rows,source,unique_experts,tokens_per_hit_expert,load_imbalance
+4,3240,record_arch_main/qwen3.5-35b-a3b/csv/sweep_causal_conv1d+fla_3gpu_20260930-091225/moe_routing.csv,21.595987654320986,1.5150392807576338,2.2199941771314777
+8,1840,record_arch_main/qwen3.5-35b-a3b/csv/sweep_causal_conv1d+fla_3gpu_20260930-091225/moe_routing.csv,35.56576086956522,1.8599185049301048,2.9988280921267916
+16,1600,record_arch_main/qwen3.5-35b-a3b/csv/sweep_causal_conv1d+fla_3gpu_20260930-091225/moe_routing.csv,50.388125,2.6005250632484636,4.03557125955321

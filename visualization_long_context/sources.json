@@ -1,0 +1,30 @@
+{
+  "records": [
+    "record_arch_main/qwen3-8b/csv/sweep_causal_conv1d+fla_3gpu_20260930-113850/component.csv",
+    "record_arch_main/qwen3-8b/sweep_causal_conv1d+fla_3gpu_20260930-113850.json",
+    "record_arch_main/qwen3-8b/traces/20260930-113850/qwen3-8b_S4096_b16_o256_shape_controlled_p0__dflash.decode_target_verify.breakdown.json",
+    "record_arch_main/qwen3-8b/traces/20260930-113850/qwen3-8b_S65536_b16_o256_shape_controlled_p0__ar.decode_ar_step.breakdown.json",
+    "record_arch_main/qwen3-8b/traces/20260930-113850/qwen3-8b_S65536_b16_o256_shape_controlled_p0__dflash.decode_target_verify.breakdown.json",
+    "record_arch_main/qwen3.5-35b-a3b/csv/sweep_causal_conv1d+fla_3gpu_20260930-023904/component.csv",
+    "record_arch_main/qwen3.5-35b-a3b/csv/sweep_causal_conv1d+fla_3gpu_20260930-091225/moe_routing.csv",
+    "record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_20260929-120532.json",
+    "record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_3gpu_20260930-023904.json",
+    "record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_3gpu_20260930-091225.json",
+    "record_arch_main/qwen3.5-35b-a3b/traces/20260930-023904/qwen3.5-35b-a3b_S4096_b16_o256_shape_controlled_p0__ar.decode_ar_step.breakdown.json",
+    "record_arch_main/qwen3.5-35b-a3b/traces/20260930-023904/qwen3.5-35b-a3b_S4096_b16_o256_shape_controlled_p0__dflash.decode_target_verify.breakdown.json",
+    "record_arch_main/qwen3.5-35b-a3b/traces/20260930-023904/qwen3.5-35b-a3b_S65536_b16_o256_shape_controlled_p0__ar.decode_ar_step.breakdown.json",
+    "record_arch_main/qwen3.5-35b-a3b/traces/20260930-023904/qwen3.5-35b-a3b_S65536_b16_o256_shape_controlled_p0__dflash.decode_target_verify.breakdown.json",
+    "record_arch_main/qwen3.5-9b/csv/sweep_causal_conv1d+fla_3gpu_20260930-103640/component.csv",
+    "record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_20260929-110754.json",
+    "record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_3gpu_20260930-103640.json",
+    "record_arch_main/qwen3.5-9b/traces/20260930-103640/qwen3.5-9b_S4096_b16_o256_shape_controlled_p0__dflash.decode_target_verify.breakdown.json",
+    "record_arch_main/qwen3.5-9b/traces/20260930-103640/qwen3.5-9b_S65536_b16_o256_shape_controlled_p0__ar.decode_ar_step.breakdown.json",
+    "record_arch_main/qwen3.5-9b/traces/20260930-103640/qwen3.5-9b_S65536_b16_o256_shape_controlled_p0__dflash.decode_target_verify.breakdown.json",
+    "record_arch_main/rollback/csv/rollback.csv"
+  ],
+  "reports": [
+    "LONG_CONTEXT_BOTTLENECK_REPORT.md",
+    "DFLASH_ARCHITECTURE_RESEARCH_REPORT.md"
+  ],
+  "style_reference": "visualization_selective/_style.py"
+}

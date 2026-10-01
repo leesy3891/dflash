@@ -1,0 +1,5 @@
+model,prompt_tokens,block_size,accepted,rejected,reference,mixer,tensors,equal,differs,max_abs_diff,differing_tensor_kinds,matching_tensor_kinds,next_token_argmax_match,logits_max_abs_diff
+/home/seoyounglee/models/Qwen3.5-9B,512,16,0,16,segmented,gdn,48,24,24,12.108451843261719,recurrent,conv;keys;values,False,4.0703125
+/home/seoyounglee/models/Qwen3.5-9B,512,16,1,15,segmented,gdn,48,0,48,12.035340309143066,conv;keys;recurrent;values,,False,5.28125
+/home/seoyounglee/models/Qwen3.5-9B,512,16,4,12,segmented,gdn,48,1,47,9.631308555603027,conv;keys;recurrent;values,conv,True,3.265625
+/home/seoyounglee/models/Qwen3.5-9B,512,16,15,1,segmented,gdn,48,1,47,5.236648082733154,conv;keys;recurrent;values,conv,True,0.71875

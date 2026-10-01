@@ -1,0 +1,5 @@
+model,context,source,stock_acceptance,replay_acceptance,stock_common_prefix,replay_common_prefix,state_error
+qwen3.5-9b,4096,record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_20260929-110754.json,0.429126213592233,0.22827346465816917,18,181,0.2898393503079812
+qwen3.5-9b,65536,record_arch_main/qwen3.5-9b/sweep_causal_conv1d+fla_20260929-110754.json,0.5768261964735516,0.32066869300911854,36,241,0.3575590349112948
+qwen3.5-35b-a3b,4096,record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_20260929-120532.json,0.19289340101522842,0.24813895781637718,42,256,0.3521043593684832
+qwen3.5-35b-a3b,8192,record_arch_main/qwen3.5-35b-a3b/sweep_causal_conv1d+fla_20260929-120532.json,0.44466800804828976,0.41353383458646614,23,256,0.3709049845735232
