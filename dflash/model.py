@@ -1332,6 +1332,13 @@ class Qwen3DFlashAttention(nn.Module):
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
             with _stage("cache_update"):
                 k, v = past_key_values.update(k, v, self.layer_idx, cache_kwargs)
+            # The batch engine supplies row-specific logical positions.  Its
+            # mask must also distinguish full and sliding/causal draft layers.
+            if hasattr(past_key_values, "attention_mask"):
+                attention_mask = past_key_values.attention_mask(
+                    q, k, causal=self.is_causal, window=self.sliding_window,
+                    layer_idx=self.layer_idx,
+                )
         if (
             attention_mask is None
             and (self.is_causal or self.sliding_window is not None)
